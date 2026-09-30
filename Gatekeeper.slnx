@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Gatekeeper.Domain.UnitTests/Gatekeeper.Domain.UnitTests.csproj" />
+  <Project Path="Gatekeeper.Domain/Gatekeeper.Domain.csproj" />
+  <Project Path="Gatekeeper.Infrastructure/Gatekeeper.Infrastructure.csproj" />
+</Solution>
