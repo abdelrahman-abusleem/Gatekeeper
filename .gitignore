@@ -5,6 +5,22 @@
 
 # dotenv files
 .env
+.env.*
+!.env.example
+
+# Local credentials and private key material (never a substitute for reviewing tracked files)
+appsettings.Local.json
+appsettings.*.local.json
+*.p12
+*.pem
+*.key
+*.snk
+*.trx
+
+# Temporary local tooling belongs outside this repository
+/benchmarks/
+/Gatekeeper.BenchHost/
+/k6/
 
 # User-specific files
 *.rsuser
@@ -480,3 +496,5 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+/docs/

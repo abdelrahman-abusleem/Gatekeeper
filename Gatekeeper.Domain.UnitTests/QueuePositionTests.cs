@@ -7,10 +7,10 @@ namespace Gatekeeper.Domain.UnitTests;
 public class QueuePositionTests
 {
     [Theory]
-    [InlineData(1, 0)]    
-    [InlineData(50, 0)]   
-    [InlineData(51, 1)]   
-    [InlineData(120, 2)]  
+    [InlineData(1, 0)]
+    [InlineData(50, 0)]
+    [InlineData(51, 1)]
+    [InlineData(120, 2)]
     public void Calculate_WithValidInputs_ShouldCalculateEstimatedWaitTimeCorrectly(long position, int expectedMinutes)
     {
         var userId = "user_123";
