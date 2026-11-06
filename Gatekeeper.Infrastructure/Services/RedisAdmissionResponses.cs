@@ -93,7 +93,7 @@ internal static class RedisAdmissionResponses
                     status);
 
                 throw new AdmissionClaimUnavailableException(
-                    $"Admission identity rejected: {status}.");
+                    $"Admission identity rejected: {status}.") { RequiresBackoff = true };
 
             case ClaimStatuses.CapacityFull when parts.Length == 1:
                 return new AdmissionClaimResult(

@@ -186,7 +186,15 @@ public sealed class QueueProcessorWorker : BackgroundService
             }
             result = await claim;
         }
-        catch (AdmissionClaimUnavailableException) { lane.Clear(); return Outcome.Continue; }
+        catch (AdmissionClaimUnavailableException ex)
+        {
+            lane.Clear();
+            if (!ex.RequiresBackoff) return Outcome.Continue;
+
+            AdmissionMetrics.Failures.Add(1, new KeyValuePair<string, object?>(AdmissionMetricTags.Category,
+                FailureCategory(ex)));
+            return Outcome.Retry;
+        }
         if (result.Status != AdmissionClaimStatus.Claimed)
         {
             AdmissionMetrics.Backpressure.Add(1, new KeyValuePair<string, object?>(AdmissionMetricTags.Reason,
