@@ -1,5 +1,4 @@
-﻿using FluentAssertions;
-using Gatekeeper.Domain.Models;
+﻿using Gatekeeper.Domain.Models;
 using Xunit;
 
 namespace Gatekeeper.Domain.UnitTests;
@@ -19,9 +18,9 @@ public class QueuePositionTests
 
         var result = QueuePosition.Create(userId, position, batchSize, interval);
 
-        result.UserId.Should().Be(userId);
-        result.Position.Should().Be(position);
-        result.EstimatedWaitTime.Should().Be(TimeSpan.FromMinutes(expectedMinutes));
+        Assert.Equal(userId, result.UserId);
+        Assert.Equal(position, result.Position);
+        Assert.Equal(TimeSpan.FromMinutes(expectedMinutes), result.EstimatedWaitTime);
     }
 
     [Theory]
@@ -32,7 +31,7 @@ public class QueuePositionTests
     {
         var act = () => QueuePosition.Create(invalidUserId!, 10, 50, TimeSpan.FromMinutes(1));
 
-        act.Should().Throw<ArgumentException>();
+        Assert.ThrowsAny<ArgumentException>(act);
     }
 
     [Theory]
@@ -42,7 +41,7 @@ public class QueuePositionTests
     {
         var act = () => QueuePosition.Create("user_1", invalidPosition, 50, TimeSpan.FromMinutes(1));
 
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Assert.ThrowsAny<ArgumentOutOfRangeException>(act);
     }
 
     [Theory]
@@ -52,16 +51,16 @@ public class QueuePositionTests
     {
         var act = () => QueuePosition.Create("user_1", 10, invalidBatchSize, TimeSpan.FromMinutes(1));
 
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Assert.ThrowsAny<ArgumentOutOfRangeException>(act);
     }
 
     [Fact]
     public void Calculate_WithZeroOrNegativeInterval_ShouldThrowException()
     {
         var actZero = () => QueuePosition.Create("user_1", 10, 50, TimeSpan.Zero);
-        actZero.Should().Throw<ArgumentOutOfRangeException>();
+        Assert.ThrowsAny<ArgumentOutOfRangeException>(actZero);
 
         var actNegative = () => QueuePosition.Create("user_1", 10, 50, TimeSpan.FromMinutes(-1));
-        actNegative.Should().Throw<ArgumentOutOfRangeException>();
+        Assert.ThrowsAny<ArgumentOutOfRangeException>(actNegative);
     }
 }

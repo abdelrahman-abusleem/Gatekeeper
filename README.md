@@ -215,8 +215,6 @@ UUIDv7 initiation also depends on the host clock, so clock synchronization remai
 
 Lua scripts are embedded in Infrastructure for runtime execution, including executable-only single-file deployments. Copied Lua files are retained for compatibility and inspection; editing those loose files does not modify the embedded protocol.
 
-Dependencies retain their respective license terms, including the test-only FluentAssertions license.
-
 ## Build and test
 
 From the repository root:
