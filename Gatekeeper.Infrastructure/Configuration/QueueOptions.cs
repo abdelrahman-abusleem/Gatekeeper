@@ -82,13 +82,4 @@ public class QueueOptions
     public TimeSpan PassDuration =>
         TimeSpan.FromMinutes(PassDurationMinutes);
 
-    /// <summary>Reserved diagnostic threshold; currently validated but does not control scheduling or admission.</summary>
-    [Range(1, 1000,
-        ErrorMessage = "LowLatencyThresholdMs must be between 1 and 1000 ms.")]
-    public int LowLatencyThresholdMs { get; init; } = 10;
-
-    /// <summary>Reserved diagnostic threshold; currently validated but does not control scheduling or admission.</summary>
-    [Range(1, 5000,
-        ErrorMessage = "HighLatencyThresholdMs must be between 1 and 5000 ms.")]
-    public int HighLatencyThresholdMs { get; init; } = 50;
 }

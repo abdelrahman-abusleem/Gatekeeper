@@ -5,9 +5,6 @@ namespace Gatekeeper.Infrastructure.Configuration;
 public class JwtOptions
 {
     public const string SectionName = "JwtSettings";
-    [Obsolete("Unused. Use QueueOptions.ActivePassesKey.")]
-    public string ActivePassesKey { get; init; } = "gatekeeper:active_passes";
-
 
     [Required]
     public string SecretKey { get; set; } = string.Empty;
