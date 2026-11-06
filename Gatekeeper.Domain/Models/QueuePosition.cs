@@ -4,6 +4,10 @@ public sealed record QueuePosition
 {
     public string UserId { get; }
     public long Position { get; }
+    /// <summary>
+    /// Coarse per-Worker estimate: whole batches ahead times the release interval.
+    /// Ignores capacity and pass expiry and is not a promise.
+    /// </summary>
     public TimeSpan EstimatedWaitTime { get; }
 
     private QueuePosition(string userId, long position, TimeSpan estimatedWaitTime)

@@ -129,6 +129,10 @@ At least one healthy Worker host is required to process admissions and perform R
 Service registration itself does not connect to Redis. Resolving the shared multiplexer connects synchronously, so Worker startup or an initial API request may wait for the configured connection timeout.
 
 Connection and reconnection policies remain controlled by the consuming host through StackExchange.Redis configuration.
+For an API-only host that may start before Redis, consider `abortConnect=false` in its
+connection string. The first synchronous resolution can still wait, but a disconnected
+multiplexer can be retained and reconnect in the background instead of retrying creation on
+each request. Keep failing closed while Redis is unavailable.
 
 ## Basic usage
 
@@ -144,22 +148,23 @@ using Gatekeeper.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
 
 var queue = host.Services.GetRequiredService<IWaitingQueue>();
-var admissions = host.Services.GetRequiredService<IAdmissionClaimStore>();
+var reader = host.Services.GetRequiredService<IAdmissionReader>();
+var validator = host.Services.GetRequiredService<IAdmissionValidator>();
 
 var position = await queue.EnqueueAsync(
     trustedUserId,
     cancellationToken);
 
-var status = await admissions.GetStatusAsync(
+var status = await reader.GetStatusAsync(
     trustedUserId,
     cancellationToken);
 
-var pass = await admissions.GetPassAsync(
+var pass = await reader.GetPassAsync(
     trustedUserId,
     cancellationToken);
 
 if (pass is not null &&
-    await admissions.ValidateAdmissionAsync(
+    await validator.ValidateAdmissionAsync(
         pass,
         trustedUserId,
         cancellationToken) == AdmissionValidationStatus.Valid)
@@ -179,7 +184,61 @@ A positive waiting limit rejects new entrants with `WaitingQueueFullException`. 
 
 `RemoveAsync` removes Waiting entries only. It does not cancel Processing or revoke Active admission.
 
-`MaxActivePasses` controls shared capacity for Active plus Processing admissions, while `MaxConcurrentAdmissions` controls processing lanes inside each Worker.
+Each Worker supplies its own `MaxActivePasses` to enforce shared Active plus Processing
+capacity, so all Workers must use identical queue settings. `MaxConcurrentAdmissions`
+controls lanes inside each Worker. A queue's state shares one Redis Cluster hash slot:
+Cluster can provide high availability, but does not shard writes for that queue.
+
+`EstimatedWaitTime` is a coarse per-Worker heuristic: whole batches ahead,
+`(position - 1) / BatchSize` using integer division, times `ReleaseInterval`. It does
+not account for capacity or pass expiry and is not a promise.
+
+### When users leave
+
+Waiting entries have no TTL or liveness tracking. If a user leaves without being removed,
+a Worker can still admit them and occupy a slot until `PassDuration` expires or the host
+releases that admission. Remove the Waiting entry or release the current admission using
+the expected ID the host already knows for this authorized user:
+
+```csharp
+var releaser = host.Services.GetRequiredService<IAdmissionReleaser>();
+if (status == AdmissionStatus.Waiting)
+    await queue.RemoveAsync(trustedUserId, cancellationToken);
+else if (status == AdmissionStatus.Active && expectedAdmissionId is { } id)
+    await releaser.ReleaseAsync(trustedUserId, id, cancellationToken);
+```
+
+State can change between the read and the action. Recheck if removal loses a race with
+Claim; Processing is not canceled by either operation.
+
+### Ready notifications
+
+Gatekeeper publishes the payload `ready` on `<NotifyChannelPrefix><userId>` through
+best-effort Redis Pub/Sub. Use it to refresh status, never to authorize admission:
+
+```csharp
+using StackExchange.Redis;
+
+// The host must authorize each user to subscribe only to their own channel.
+await redis.GetSubscriber().SubscribeAsync(
+    RedisChannel.Literal(queueOptions.NotifyChannelPrefix + trustedUserId),
+    (_, message) =>
+    {
+        if (message == "ready") SignalStatusRefresh();
+    });
+```
+
+### Inconsistent Redis state
+
+`INCONSISTENT` means Redis records disagree or are malformed, for example after external
+writes, eviction or corruption. Gatekeeper does not repair such state speculatively. Look
+for the warning `Processing metadata requires intervention` and the failure metric category
+`unresolved` when Commit reconciliation cannot establish an outcome.
+
+Pause Workers for the affected queue and inspect the user's Waiting, Processing, Records,
+Active, pass, identity and attempt keys. Only after confirming there is no live pass, in-flight
+Commit or legitimate reservation, remove the user's Processing and Records entries if they are
+confirmed orphans. If authority remains unclear, leave the state intact for investigation.
 
 ## ASP.NET Core integration
 
@@ -193,7 +252,7 @@ The admission check complements the application's existing authentication and bu
 
 ## Security and operating assumptions
 
-- Validate admission using `IAdmissionClaimStore.ValidateAdmissionAsync`. Only `AdmissionValidationStatus.Valid` authorizes admission.
+- Validate admission using `IAdmissionValidator.ValidateAdmissionAsync`. Only `AdmissionValidationStatus.Valid` authorizes admission.
 - Cryptographic JWT validation alone, Active status, or ready notifications are insufficient.
 - Keep application authentication, identity ownership and business authorization separate from admission control.
 - Use HTTPS when transporting admission passes.
