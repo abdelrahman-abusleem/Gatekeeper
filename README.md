@@ -300,6 +300,11 @@ Do not point test infrastructure at production Redis.
 
 Keep generated output, local credentials and environment-specific configuration out of source control.
 
+## Contributing and security
+
+See [Contributing](CONTRIBUTING.md) for development and test instructions and
+[Security](SECURITY.md) for private vulnerability reporting.
+
 ## License
 
 Gatekeeper is licensed under the [MIT License](LICENSE).
