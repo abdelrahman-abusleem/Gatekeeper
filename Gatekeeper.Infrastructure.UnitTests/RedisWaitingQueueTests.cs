@@ -36,8 +36,8 @@ public sealed class RedisWaitingQueueTests
     public async Task EnqueueAsync_Rejects257Utf16CodeUnitsBeforeCallingRedis()
     {
         var database = DispatchProxy.Create<IDatabase, NoRedisCalls>();
-        var connection = DispatchProxy.Create<IConnectionMultiplexer, FinalPassApiTests.ReplyProxy>();
-        ((FinalPassApiTests.ReplyProxy)(object)connection).Reply = database;
+        var connection = DispatchProxy.Create<IConnectionMultiplexer, ApiTests.ReplyProxy>();
+        ((ApiTests.ReplyProxy)(object)connection).Reply = database;
         var queue = new RedisWaitingQueue(connection, Options.Create(new QueueOptions()), NullLogger<RedisWaitingQueue>.Instance);
         var userId = string.Concat(Enumerable.Repeat("\U0001F600", 128)) + "a";
 

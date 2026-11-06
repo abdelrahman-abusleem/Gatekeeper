@@ -358,7 +358,7 @@ public sealed class RedisAdmissionClaimReconciliationTests
         var store = new RedisAdmissionClaimStore(
             _fixture.Connection,
             Options.Create(queueOptions),
-            NullLogger<RedisAdmissionClaimStore>.Instance, new Phase03Context(_fixture).Tokens);
+            NullLogger<RedisAdmissionClaimStore>.Instance, new AdmissionTestContext(_fixture).Tokens);
 
         return (
             store,

@@ -35,7 +35,7 @@ internal static class UuidRetentionTestSupport
             await Task.Delay(20);
         }
     }
-    public static async Task<AdmissionClaim> SeedRecordedAsync(Phase03Context c, AdmissionId id)
+    public static async Task<AdmissionClaim> SeedRecordedAsync(AdmissionTestContext c, AdmissionId id)
     {
         var current = await c.ClaimAsync();
         var attempt = JsonNode.Parse((await c.Db.StringGetAsync(c.AttemptKey(current))).ToString())!;
@@ -58,7 +58,7 @@ public sealed class Uuid7ClaimTests(RedisClaimFixture fixture) : IClassFixture<R
     [InlineData(1792281600123L)]
     public async Task LuaExtractsNativeGuidTimestamp_WithoutMixedEndianConfusion(long timestamp)
     {
-        var c = new Phase03Context(fixture);
+        var c = new AdmissionTestContext(fixture);
         await c.Queue.EnqueueAsync("user");
         var id = UuidRetentionTestSupport.At(timestamp);
         var keys = new RedisKeys(c.Options).ForClaim(id);
@@ -107,7 +107,7 @@ public sealed class Uuid7ClaimTests(RedisClaimFixture fixture) : IClassFixture<R
     [InlineData(60001, "ID_TOO_FUTURE")]
     public async Task ExactBoundaries_UseRedisTimeAndNeverMutateOnRejection(long offset, string expected)
     {
-        var c = new Phase03Context(fixture);
+        var c = new AdmissionTestContext(fixture);
         await c.Queue.EnqueueAsync("user");
         await c.Db.SortedSetAddAsync(c.Options.ActivePassesKey, "expired-active", 1);
         var now = await UuidRetentionTestSupport.NowAsync(c.Db);
@@ -137,7 +137,7 @@ public sealed class Uuid7ClaimTests(RedisClaimFixture fixture) : IClassFixture<R
     [InlineData("018f1234-5678-4000-8000-000000000000")]
     public async Task MissingInvalidOrUnsupportedIdentity_IsRejected(string id)
     {
-        var c = new Phase03Context(fixture);
+        var c = new AdmissionTestContext(fixture);
         await c.Queue.EnqueueAsync("user");
         var result = (RedisResult[])(await c.Db.ScriptEvaluateAsync(UuidRetentionTestSupport.ClaimScript,
             [c.Options.QueueKey, c.Options.ProcessingQueueKey, c.Options.AdmissionRecordsKey, c.Options.ActivePassesKey,
@@ -149,7 +149,7 @@ public sealed class Uuid7ClaimTests(RedisClaimFixture fixture) : IClassFixture<R
     [Fact]
     public async Task FreshNativeIdWorks_AndMissingV4CannotStartClaim()
     {
-        var c = new Phase03Context(fixture);
+        var c = new AdmissionTestContext(fixture);
         await c.Queue.EnqueueAsync("user");
         await Assert.ThrowsAsync<AdmissionClaimUnavailableException>(() => c.Store.ClaimNextAsync(
             new AdmissionId(Guid.NewGuid()), 10, c.Options.ProcessingLease));
@@ -160,7 +160,7 @@ public sealed class Uuid7ClaimTests(RedisClaimFixture fixture) : IClassFixture<R
     [Fact]
     public async Task ConcurrentSameId_HasOneReservationAndOneUser()
     {
-        var c = new Phase03Context(fixture);
+        var c = new AdmissionTestContext(fixture);
         await Task.WhenAll(Enumerable.Range(0, 10).Select(i => c.Queue.EnqueueAsync("user-" + i)));
         var id = UuidRetentionTestSupport.At(await UuidRetentionTestSupport.NowAsync(c.Db));
         var results = await Task.WhenAll(Enumerable.Range(0, 32).Select(_ => c.Store.ClaimNextAsync(id, 10, c.Options.ProcessingLease)));
@@ -176,7 +176,7 @@ public sealed class BoundedAttemptLifecycleTests(RedisClaimFixture fixture) : IC
     [InlineData(true)]
     public async Task NegativeExpiry_CannotTurnOldIdIntoNewClaim(bool full)
     {
-        var c = new Phase03Context(fixture, capacity: 2, configure: UuidRetentionTestSupport.ShortPolicy);
+        var c = new AdmissionTestContext(fixture, capacity: 2, configure: UuidRetentionTestSupport.ShortPolicy);
         if (full) await c.ClaimAsync("held");
         var id = UuidRetentionTestSupport.At(await UuidRetentionTestSupport.NowAsync(c.Db));
         var first = await c.Store.ClaimNextAsync(id, 1, c.Options.ProcessingLease);
@@ -198,7 +198,7 @@ public sealed class BoundedAttemptLifecycleTests(RedisClaimFixture fixture) : IC
     [InlineData(1500)]
     public async Task CommittedExpiry_ProtectsHistoryButDoesNotExtendPass(int passMilliseconds)
     {
-        var c = new Phase03Context(fixture, configure: UuidRetentionTestSupport.ShortPolicy);
+        var c = new AdmissionTestContext(fixture, configure: UuidRetentionTestSupport.ShortPolicy);
         var claim = await c.ClaimAsync();
         var now = await UuidRetentionTestSupport.NowAsync(c.Db);
         var expiry = now + passMilliseconds;
@@ -224,7 +224,7 @@ public sealed class BoundedAttemptLifecycleTests(RedisClaimFixture fixture) : IC
     [InlineData(true)]
     public async Task OldRecordedClaim_RemainsRecoverableAndTerminalReplayIsFenced(bool legacyV4)
     {
-        var c = new Phase03Context(fixture, configure: UuidRetentionTestSupport.ShortPolicy);
+        var c = new AdmissionTestContext(fixture, configure: UuidRetentionTestSupport.ShortPolicy);
         var id = legacyV4 ? new AdmissionId(Guid.NewGuid())
             : UuidRetentionTestSupport.At(await UuidRetentionTestSupport.NowAsync(c.Db) - 3600000);
         var claim = await UuidRetentionTestSupport.SeedRecordedAsync(c, id);
@@ -252,7 +252,7 @@ public sealed class BoundedAttemptLifecycleTests(RedisClaimFixture fixture) : IC
     [InlineData(true)]
     public async Task RecordedOldId_CanCommitWithoutExtendingActive(bool legacyV4)
     {
-        var c = new Phase03Context(fixture, configure: UuidRetentionTestSupport.ShortPolicy);
+        var c = new AdmissionTestContext(fixture, configure: UuidRetentionTestSupport.ShortPolicy);
         var id = legacyV4 ? new AdmissionId(Guid.NewGuid())
             : UuidRetentionTestSupport.At(await UuidRetentionTestSupport.NowAsync(c.Db) - 3600000);
         var claim = await UuidRetentionTestSupport.SeedRecordedAsync(c, id);
@@ -269,7 +269,7 @@ public sealed class BoundedAttemptLifecycleTests(RedisClaimFixture fixture) : IC
     [InlineData("RECOVERED")]
     public async Task RecordedLegacyTerminalOutcomes_RemainReadableWithoutImplicitMigration(string status)
     {
-        var c = new Phase03Context(fixture);
+        var c = new AdmissionTestContext(fixture);
         var id = new AdmissionId(Guid.NewGuid());
         var payload = System.Text.Json.JsonSerializer.Serialize(new { admissionId = id.ToString(), userId = "user", status });
         var key = c.Options.ClaimAttemptKeyPrefix + id;
@@ -286,13 +286,13 @@ public sealed class BoundedAttemptLifecycleTests(RedisClaimFixture fixture) : IC
     [Fact]
     public async Task MissingAttemptWhileProcessingOrActive_IsInconsistent()
     {
-        var c = new Phase03Context(fixture);
+        var c = new AdmissionTestContext(fixture);
         var claim = await c.ClaimAsync();
         await c.Db.KeyDeleteAsync(c.AttemptKey(claim));
         Assert.Equal(AdmissionCommitStatus.Inconsistent, await c.Store.GetCommitStatusAsync(claim, "token"));
         await Assert.ThrowsAsync<AdmissionCommitRejectedException>(() => c.CommitAsync(claim));
         Assert.Equal((0L, 1L, 0L), await c.CountsAsync());
-        var active = new Phase03Context(fixture);
+        var active = new AdmissionTestContext(fixture);
         var committed = await active.ClaimAsync();
         await active.CommitAsync(committed);
         await active.Db.KeyDeleteAsync(active.AttemptKey(committed));
@@ -302,7 +302,7 @@ public sealed class BoundedAttemptLifecycleTests(RedisClaimFixture fixture) : IC
     [Fact]
     public async Task MissingHistoryInsideWindow_RemainsUnknown()
     {
-        var c = new Phase03Context(fixture);
+        var c = new AdmissionTestContext(fixture);
         var claim = new AdmissionClaim(UuidRetentionTestSupport.At(await UuidRetentionTestSupport.NowAsync(c.Db)),
             "user", 1, DateTime.UtcNow.AddSeconds(30));
         Assert.Equal(AdmissionCommitStatus.Unknown, await c.Store.GetCommitStatusAsync(claim, "token"));
@@ -312,7 +312,7 @@ public sealed class BoundedAttemptLifecycleTests(RedisClaimFixture fixture) : IC
     [Fact]
     public async Task ExistingV4ActiveJwt_RemainsValidAndColdLegacyAttemptIsNotMigrated()
     {
-        var c = new Phase03Context(fixture);
+        var c = new AdmissionTestContext(fixture);
         var claim = await UuidRetentionTestSupport.SeedRecordedAsync(c, new AdmissionId(Guid.NewGuid()));
         var issued = DateTimeOffset.FromUnixTimeSeconds(
             (await UuidRetentionTestSupport.NowAsync(c.Db)) / 1000).UtcDateTime;
