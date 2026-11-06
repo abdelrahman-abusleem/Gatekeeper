@@ -1,11 +1,47 @@
 using Gatekeeper.Domain.Enums;
 using Gatekeeper.Domain.Models;
 using Gatekeeper.Domain.ValueObjects;
+using Gatekeeper.Infrastructure.Workers;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Gatekeeper.Infrastructure.UnitTests;
 
 public sealed class Phase03RecoveryProgressTests(RedisClaimFixture fixture) : IClassFixture<RedisClaimFixture>
 {
+    [Fact]
+    public async Task HealthyRecovery_UsesLeaseCadenceWhenReleaseIntervalIsLong()
+    {
+        var c = new Phase03Context(fixture, configure: options =>
+        {
+            options.ProcessingLeaseSeconds = 1;
+            options.ReleaseIntervalSeconds = 3600;
+        });
+        var initialScan = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var store = new ObservedClaimStore(c.Store)
+        {
+            AfterRecovery = _ => initialScan.TrySetResult()
+        };
+        var loop = new AdmissionRecoveryLoop(store, c.Options, NullLogger<QueueProcessorWorker>.Instance,
+            new AdmissionRetryPolicy(c.Options));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        var recovery = loop.RunAsync(deadline.Token);
+        try
+        {
+            await initialScan.Task.WaitAsync(deadline.Token);
+            var claim = await c.ClaimAsync();
+            while (await c.Store.GetStatusAsync(claim.UserId, deadline.Token) != AdmissionStatus.Waiting)
+                await Task.Delay(50, deadline.Token);
+
+            Assert.Equal((1L, 0L, 0L), await c.CountsAsync());
+            Assert.Equal(claim.OriginalScore, await c.Db.SortedSetScoreAsync(c.Options.QueueKey, claim.UserId));
+        }
+        finally
+        {
+            await deadline.CancelAsync();
+            await recovery;
+        }
+    }
+
     [Theory]
     [InlineData(1, 1, 1)]
     [InlineData(5, 3, 2)]

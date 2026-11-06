@@ -91,6 +91,9 @@ Configure them according to your environment:
 - **MaxConcurrentAdmissions:** Admission-processing concurrency within each Worker.
 - **Issuer and Audience:** JWT values that must match between the signing and validating applications.
 
+When healthy, Recovery runs every `min(ReleaseIntervalSeconds, ProcessingLeaseSeconds)`.
+It backs off exponentially after failures.
+
 A JWT signing secret is also required. Supply `JwtSettings:SecretKey` through a secure configuration provider, such as the environment variable `JwtSettings__SecretKey`.
 
 The value must be Base64-encoded and represent at least 32 cryptographically random bytes.
