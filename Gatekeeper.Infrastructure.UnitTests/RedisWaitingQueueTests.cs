@@ -1,3 +1,4 @@
+using System.Reflection;
 using Gatekeeper.Domain.Exceptions;
 
 using Gatekeeper.Infrastructure.Configuration;
@@ -17,6 +18,38 @@ public sealed class RedisWaitingQueueTests
         RedisClaimFixture fixture)
     {
         _fixture = fixture;
+    }
+
+    [Fact]
+    public async Task EnqueueAsync_Accepts256Utf16CodeUnits()
+    {
+        var (queue, _, _) = CreateContext();
+        var userId = string.Concat(Enumerable.Repeat("\U0001F600", 128));
+
+        var position = await queue.EnqueueAsync(userId);
+
+        Assert.Equal(userId, position.UserId);
+        Assert.Equal(1, position.Position);
+    }
+
+    [Fact]
+    public async Task EnqueueAsync_Rejects257Utf16CodeUnitsBeforeCallingRedis()
+    {
+        var database = DispatchProxy.Create<IDatabase, NoRedisCalls>();
+        var connection = DispatchProxy.Create<IConnectionMultiplexer, FinalPassApiTests.ReplyProxy>();
+        ((FinalPassApiTests.ReplyProxy)(object)connection).Reply = database;
+        var queue = new RedisWaitingQueue(connection, Options.Create(new QueueOptions()), NullLogger<RedisWaitingQueue>.Instance);
+        var userId = string.Concat(Enumerable.Repeat("\U0001F600", 128)) + "a";
+
+        var error = await Assert.ThrowsAsync<ArgumentException>(() => queue.EnqueueAsync(userId));
+
+        Assert.Equal("userId", error.ParamName);
+    }
+
+    public class NoRedisCalls : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? method, object?[]? args) =>
+            throw new InvalidOperationException("Unexpected Redis call: " + method?.Name);
     }
 
     [Fact]

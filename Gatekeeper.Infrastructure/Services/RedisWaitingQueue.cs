@@ -41,6 +41,8 @@ public sealed class RedisWaitingQueue : IWaitingQueue
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+        if (userId.Length > RedisProtocolLimits.MaxEnqueueUserIdLength)
+            throw new ArgumentException($"User ID must not exceed {RedisProtocolLimits.MaxEnqueueUserIdLength} UTF-16 code units.", nameof(userId));
         cancellationToken.ThrowIfCancellationRequested();
 
         var result = await AdmissionMetrics.RedisAsync(AdmissionMetricOperations.Enqueue, () => _database.ScriptEvaluateAsync(

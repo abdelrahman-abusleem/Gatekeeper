@@ -173,6 +173,8 @@ An admission pass may not be available immediately after enqueueing.
 
 Applications should poll with cancellation and appropriate backoff. Queue status and notifications are informational; they do not authorize admission.
 
+`EnqueueAsync` requires a nonblank user ID of at most 256 UTF-16 code units.
+
 A positive waiting limit rejects new entrants with `WaitingQueueFullException`. Redis failures and uncertain outcomes must be handled separately.
 
 `RemoveAsync` removes Waiting entries only. It does not cancel Processing or revoke Active admission.
