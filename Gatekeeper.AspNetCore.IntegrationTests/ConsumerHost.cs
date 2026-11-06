@@ -74,7 +74,7 @@ internal sealed class ConsumerHost : IAsyncDisposable
             foreach (var key in settings.Keys.ToArray()) settings[key] = admissionConfiguration[key];
         builder.Configuration.AddInMemoryCollection(settings);
         builder.Services.AddSingleton(redis);
-        builder.Services.AddInfrastructure(builder.Configuration, addWorker: false);
+        builder.Services.AddGatekeeper(builder.Configuration, addWorker: false);
         builder.Services.AddAuthentication("TestHost").AddScheme<AuthenticationSchemeOptions, TestHostAuthentication>("TestHost", _ => { });
         builder.Services.AddAuthorization(options =>
         {

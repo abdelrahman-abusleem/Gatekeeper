@@ -26,8 +26,8 @@ public sealed class Phase06ConfigurationTests(RedisClaimFixture fixture) : IClas
         }).Build();
         var services = new ServiceCollection().AddLogging();
         services.AddSingleton<IConnectionMultiplexer>(fixture.Connection);
-        services.AddInfrastructure(config, addWorker: worker);
-        services.AddInfrastructure(config, addWorker: worker);
+        services.AddGatekeeper(config, addWorker: worker);
+        services.AddGatekeeper(config, addWorker: worker);
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
         Assert.Same(fixture.Connection, Assert.Single(provider.GetServices<IConnectionMultiplexer>()));
         Assert.Single(provider.GetServices<IAdmissionClaimStore>());

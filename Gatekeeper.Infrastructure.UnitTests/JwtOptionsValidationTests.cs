@@ -21,7 +21,7 @@ public class JwtOptionsValidationTests
                 ["JwtSettings:Audience"] = "TicketingClients"
             });
 
-        builder.Services.AddInfrastructure(builder.Configuration);
+        builder.Services.AddGatekeeper(builder.Configuration);
 
         builder.Services.RemoveAll<IHostedService>();
 
@@ -46,7 +46,7 @@ public class JwtOptionsValidationTests
                 ["JwtSettings:Audience"] = "TicketingClients"
             });
 
-        builder.Services.AddInfrastructure(builder.Configuration);
+        builder.Services.AddGatekeeper(builder.Configuration);
 
         builder.Services.RemoveAll<IHostedService>();
 

@@ -26,8 +26,8 @@ public sealed class FinalPassApiTests(RedisClaimFixture fixture) : IClassFixture
         services.AddSingleton<IAdmissionClaimStore>(custom);
         services.AddSingleton<IAdmissionReader>(reader);
         var configuration = new ConfigurationBuilder().Build();
-        services.AddInfrastructure(configuration, addWorker: false);
-        services.AddInfrastructure(configuration, addWorker: false);
+        services.AddGatekeeper(configuration, addWorker: false);
+        services.AddGatekeeper(configuration, addWorker: false);
         using var provider = services.BuildServiceProvider();
         Assert.Same(custom, provider.GetRequiredService<IAdmissionClaimStore>());
         Assert.Same(reader, Assert.Single(provider.GetServices<IAdmissionReader>()));

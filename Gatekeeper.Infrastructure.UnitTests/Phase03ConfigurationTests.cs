@@ -34,7 +34,7 @@ public sealed class Phase03ConfigurationTests
             ["JwtSettings:Issuer"] = "test",
             ["JwtSettings:Audience"] = "test"
         });
-        builder.Services.AddInfrastructure(builder.Configuration);
+        builder.Services.AddGatekeeper(builder.Configuration);
         builder.Services.RemoveAll<IHostedService>();
         using var host = builder.Build();
         await Assert.ThrowsAsync<OptionsValidationException>(() => host.StartAsync());
@@ -59,7 +59,7 @@ public sealed class Phase03ConfigurationTests
             [$"QueueSettings:{name}"] = value
         }).Build();
         services.AddSingleton<IConfiguration>(config);
-        services.AddInfrastructure(config);
+        services.AddGatekeeper(config);
         using var provider = services.BuildServiceProvider();
         Assert.Throws<OptionsValidationException>(() => provider.GetRequiredService<IOptions<QueueOptions>>().Value);
     }
@@ -105,7 +105,7 @@ public sealed class Phase03RedisConfigurationTests(RedisClaimFixture fixture) : 
         var config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         var services = new ServiceCollection().AddLogging();
         services.AddSingleton<IConfiguration>(config);
-        services.AddInfrastructure(config);
+        services.AddGatekeeper(config);
         services.AddSingleton(fixture.Connection);
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions
         { ValidateOnBuild = true, ValidateScopes = true });

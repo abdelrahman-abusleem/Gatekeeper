@@ -17,7 +17,7 @@ public sealed class RefactorStartupTests
         listener.Stop();
         var configuration = Configuration($"127.0.0.1:{port},connectTimeout=100,connectRetry=0,abortConnect=true");
         var services = new ServiceCollection().AddLogging();
-        services.AddInfrastructure(configuration, addWorker: false);
+        services.AddGatekeeper(configuration, addWorker: false);
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
 
         Assert.Single(services, service => service.ServiceType == typeof(IConnectionMultiplexer));
@@ -28,7 +28,7 @@ public sealed class RefactorStartupTests
     public void InvalidExplicitRedisConfiguration_IsNotReplacedByLocalhost()
     {
         var services = new ServiceCollection().AddLogging();
-        services.AddInfrastructure(Configuration("unsupported-option=true"), addWorker: false);
+        services.AddGatekeeper(Configuration("unsupported-option=true"), addWorker: false);
         using var provider = services.BuildServiceProvider();
         Assert.Throws<ArgumentException>(() => provider.GetRequiredService<IConnectionMultiplexer>());
     }

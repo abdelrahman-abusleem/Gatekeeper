@@ -109,7 +109,7 @@ Register Gatekeeper in your .NET Generic Host or ASP.NET Core application:
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddGatekeeper(builder.Configuration);
 ```
 
 This registers the infrastructure services and the background Worker.
@@ -117,7 +117,7 @@ This registers the infrastructure services and the background Worker.
 For an API process where Workers run in a separate host:
 
 ```csharp
-builder.Services.AddInfrastructure(
+builder.Services.AddGatekeeper(
     builder.Configuration,
     addWorker: false);
 ```

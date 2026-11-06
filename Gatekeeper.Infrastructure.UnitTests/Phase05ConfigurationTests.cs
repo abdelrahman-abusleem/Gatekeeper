@@ -19,7 +19,7 @@ public sealed class Phase05ConfigurationTests
         { [$"QueueSettings:{setting}"] = value }).Build();
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(config);
-        services.AddInfrastructure(config);
+        services.AddGatekeeper(config);
         using var provider = services.BuildServiceProvider();
         Assert.Throws<OptionsValidationException>(() => provider.GetRequiredService<IOptions<QueueOptions>>().Value);
     }

@@ -11,12 +11,12 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(
+    public static IServiceCollection AddGatekeeper(
         this IServiceCollection services,
         IConfiguration configuration)
-        => services.AddInfrastructure(configuration, addWorker: true);
+        => services.AddGatekeeper(configuration, addWorker: true);
 
-    public static IServiceCollection AddInfrastructure(
+    public static IServiceCollection AddGatekeeper(
         this IServiceCollection services,
         IConfiguration configuration,
         bool addWorker)
