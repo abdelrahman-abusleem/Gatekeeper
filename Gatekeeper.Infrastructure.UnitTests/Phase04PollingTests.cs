@@ -201,7 +201,7 @@ public sealed class Phase04PollingTests(RedisClaimFixture fixture) : IClassFixtu
     [Fact]
     public async Task StoppedRedisServer_ProducesFailureForBothPollingOperations()
     {
-        await using var container = new RedisBuilder("redis:7.0").Build();
+        await using var container = new RedisBuilder(TestRedisImage.Name).Build();
         await container.StartAsync();
         var config = ConfigurationOptions.Parse(container.GetConnectionString());
         config.AsyncTimeout = 500;

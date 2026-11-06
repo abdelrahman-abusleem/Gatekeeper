@@ -42,7 +42,7 @@ public sealed class Phase03ClusterSmokeTests
             + " --cluster-replicas 0 --cluster-yes\nwhile :; do sleep 1; done";
         var ready = string.Join(" && ", ports.Select(p =>
             $"redis-cli -p {p} cluster info | grep -q 'cluster_state:ok'"));
-        var builder = new ContainerBuilder("redis:7.0")
+        var builder = new ContainerBuilder(TestRedisImage.Name)
             .WithEntrypoint("/bin/sh").WithCommand("-ec", start)
             .WithWaitStrategy(Wait.ForUnixContainer().UntilCommandIsCompleted("sh", "-c", ready));
         foreach (var port in ports) builder = builder.WithPortBinding(port, port);

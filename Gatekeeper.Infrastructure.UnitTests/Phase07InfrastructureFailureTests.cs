@@ -20,7 +20,7 @@ public sealed class Phase07InfrastructureFailureTests
     public async Task ActualServerStopAndRestart_AllOperationsFailExplicitly_ThenSameConnectionRecovers()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        await using var redis = new RedisBuilder("redis:7.0")
+        await using var redis = new RedisBuilder(TestRedisImage.Name)
             .WithPortBinding(AvailablePort(), 6379)
             .WithCommand("redis-server", "--appendonly", "yes", "--appendfsync", "always").Build();
         await redis.StartAsync(timeout.Token);
@@ -71,7 +71,7 @@ public sealed class Phase07InfrastructureFailureTests
     public async Task WorkerResumesOriginalClaimAfterRealOutage_WithoutNewIdentityOrNotificationReplay()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        await using var redis = new RedisBuilder("redis:7.0")
+        await using var redis = new RedisBuilder(TestRedisImage.Name)
             .WithPortBinding(AvailablePort(), 6379)
             .WithCommand("redis-server", "--appendonly", "yes", "--appendfsync", "always").Build();
         await redis.StartAsync(timeout.Token);
@@ -116,7 +116,7 @@ public sealed class Phase07InfrastructureFailureTests
         const string start = "redis-server --port 6379 --bind 0.0.0.0 --protected-mode no --save '' --appendonly no --daemonize yes --pidfile /tmp/primary.pid\n"
             + "redis-server --port 6380 --bind 0.0.0.0 --protected-mode no --save '' --appendonly no --daemonize yes --replicaof 127.0.0.1 6379\n"
             + "while :; do sleep 1; done";
-        await using var topology = new ContainerBuilder("redis:7.0")
+        await using var topology = new ContainerBuilder(TestRedisImage.Name)
             .WithEntrypoint("/bin/sh").WithCommand("-ec", start)
             .WithPortBinding(6379, true).WithPortBinding(6380, true)
             .WithWaitStrategy(Wait.ForUnixContainer().UntilCommandIsCompleted("sh", "-c",

@@ -137,7 +137,7 @@ public sealed class Phase06SecurityTests(RedisClaimFixture fixture) : IClassFixt
     [Fact]
     public async Task ServerOutage_ThrowsDuringValidationAndRelease()
     {
-        await using var container = new RedisBuilder("redis:7.0").Build();
+        await using var container = new RedisBuilder(TestRedisImage.Name).Build();
         await container.StartAsync();
         var config = ConfigurationOptions.Parse(container.GetConnectionString());
         config.AsyncTimeout = 500; config.BacklogPolicy = BacklogPolicy.FailFast;
@@ -154,7 +154,7 @@ public sealed class Phase06SecurityTests(RedisClaimFixture fixture) : IClassFixt
     [InlineData(true)]
     public async Task RedisCommandTimeout_NeverReturnsSuccess_EvenIfReleaseEventuallyExecutes(bool release)
     {
-        await using var container = new RedisBuilder("redis:7.0").Build();
+        await using var container = new RedisBuilder(TestRedisImage.Name).Build();
         await container.StartAsync();
         using var admin = await ConnectionMultiplexer.ConnectAsync(container.GetConnectionString() + ",allowAdmin=true");
         var config = ConfigurationOptions.Parse(container.GetConnectionString());

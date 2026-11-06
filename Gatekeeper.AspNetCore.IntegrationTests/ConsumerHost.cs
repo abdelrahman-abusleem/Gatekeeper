@@ -27,7 +27,7 @@ namespace Gatekeeper.AspNetCore.IntegrationTests;
 
 public sealed class ConsumerRedisFixture : IAsyncLifetime
 {
-    private readonly RedisContainer _redis = new RedisBuilder("redis:7.0").Build();
+    private readonly RedisContainer _redis = new RedisBuilder(TestRedisImage.Name).Build();
     public IConnectionMultiplexer Connection { get; private set; } = null!;
     public async Task InitializeAsync()
     {

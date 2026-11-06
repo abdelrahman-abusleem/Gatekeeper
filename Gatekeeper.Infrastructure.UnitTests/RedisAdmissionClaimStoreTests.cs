@@ -15,7 +15,7 @@ namespace Gatekeeper.Infrastructure.UnitTests;
 public sealed class RedisClaimFixture : IAsyncLifetime
 {
     private readonly RedisContainer _container =
-        new RedisBuilder("redis:7.0").Build();
+        new RedisBuilder(TestRedisImage.Name).Build();
 
     public IConnectionMultiplexer Connection { get; private set; }
         = null!;

@@ -138,7 +138,7 @@ public sealed class ConsumerSecurityTests(ConsumerRedisFixture fixture) : IClass
     [Fact]
     public async Task ActualRedisOutage_ProducesUnavailable_NotProtectedExecutionOrFakePollingSuccess()
     {
-        await using var container = new RedisBuilder("redis:7.0").Build();
+        await using var container = new RedisBuilder(TestRedisImage.Name).Build();
         await container.StartAsync();
         var config = ConfigurationOptions.Parse(container.GetConnectionString());
         config.AsyncTimeout = 500; config.BacklogPolicy = BacklogPolicy.FailFast;

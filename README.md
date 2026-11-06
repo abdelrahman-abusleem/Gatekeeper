@@ -222,7 +222,15 @@ dotnet build Gatekeeper.slnx --configuration Release --no-restore -m:1
 dotnet test Gatekeeper.slnx --configuration Release --no-build --no-restore -m:1
 ```
 
-Run the Redis-backed tests with Docker available in Linux-container mode.
+Run the Redis-backed tests with Docker available in Linux-container mode. The default
+image is `redis:7.0`. To test another image, set `GATEKEEPER_TEST_REDIS_IMAGE`:
+
+```bash
+GATEKEEPER_TEST_REDIS_IMAGE=redis:7.4 dotnet test Gatekeeper.slnx --configuration Release --no-build --no-restore -m:1
+```
+
+In PowerShell, set `$env:GATEKEEPER_TEST_REDIS_IMAGE = 'redis:7.4'` before running the
+test command, then clear it with `Remove-Item Env:GATEKEEPER_TEST_REDIS_IMAGE`.
 
 The tests use disposable Redis resources and cover Domain behavior, Workers, Redis/Lua operations, Cluster and failure scenarios, and ASP.NET Core integration.
 
