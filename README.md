@@ -300,10 +300,9 @@ Do not point test infrastructure at production Redis.
 
 Keep generated output, local credentials and environment-specific configuration out of source control.
 
-## Contributing and security
+## Contributing
 
-See [Contributing](CONTRIBUTING.md) for development and test instructions and
-[Security](SECURITY.md) for private vulnerability reporting.
+See [Contributing](CONTRIBUTING.md) for development and test instructions.
 
 ## License
 
