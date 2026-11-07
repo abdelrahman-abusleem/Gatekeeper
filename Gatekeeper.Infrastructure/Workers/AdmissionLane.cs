@@ -53,9 +53,13 @@ internal sealed class AdmissionLane
             Claim.AdmissionId, Claim.UserId, _issuedAtUtc, ExpiresAtUtc));
     }
 
-    internal void Clear()
+    internal void Clear(bool preserveBackoff = false)
     {
         AttemptId = null; Claim = null; Token = null; CommitUncertain = false; ExpiresAtUtc = default;
-        _failures = 0; _retryDelay = TimeSpan.Zero;
+        if (!preserveBackoff)
+        {
+            _failures = 0;
+            _retryDelay = TimeSpan.Zero;
+        }
     }
 }

@@ -189,7 +189,7 @@ public sealed class QueueProcessorWorker : BackgroundService
         }
         catch (AdmissionClaimUnavailableException ex)
         {
-            lane.Clear();
+            lane.Clear(preserveBackoff: ex.RequiresBackoff);
             if (!ex.RequiresBackoff) return Outcome.Continue;
 
             AdmissionMetrics.Failures.Add(1, new KeyValuePair<string, object?>(AdmissionMetricTags.Category,
