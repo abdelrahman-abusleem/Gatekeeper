@@ -33,7 +33,7 @@ FIFO selection does not imply concurrent signing/Commit completion order, and ad
 
 Redis should be protected with appropriate network access controls and configured with `noeviction`.
 
-The Lua scripts require `PEXPIRETIME`, available from Redis 7.0.
+Redis 7.0 is the minimum supported version because the Lua scripts use `PEXPIRETIME`.
 
 ## Getting started
 
@@ -129,10 +129,12 @@ At least one healthy Worker host is required to process admissions and perform R
 Service registration itself does not connect to Redis. Resolving the shared multiplexer connects synchronously, so Worker startup or an initial API request may wait for the configured connection timeout.
 
 Connection and reconnection policies remain controlled by the consuming host through StackExchange.Redis configuration.
-For an API-only host that may start before Redis, consider `abortConnect=false` in its
-connection string. The first synchronous resolution can still wait, but a disconnected
-multiplexer can be retained and reconnect in the background instead of retrying creation on
-each request. Keep failing closed while Redis is unavailable.
+Gatekeeper uses `abortConnect=false` when the connection string omits it and honors either
+explicit value. In a closed-loopback test with a 1-second connect timeout and no connect
+retries, eight concurrent resolutions shared one multiplexer after about 1.04 seconds.
+Eight later resolutions took 0.071 ms in total with no new connection factory attempts.
+A status lookup during the outage still failed with a Redis connection exception after
+about 6 seconds. The same multiplexer reconnects when Redis becomes available.
 
 ## Basic usage
 
@@ -235,6 +237,14 @@ writes, eviction or corruption. Gatekeeper does not repair such state speculativ
 for the warning `Processing metadata requires intervention` and the failure metric category
 `unresolved` when Commit reconciliation cannot establish an outcome.
 
+If reconciliation keeps returning `Unknown`, `Mismatch` or `Inconsistent` for
+`ClaimIdAcceptanceWindowSeconds + ClaimAttemptGraceSeconds` (360 seconds by default),
+the Worker clears the local attempt so the lane can claim other users. Time across failed
+reconciliation calls does not count. Parking leaves Redis state untouched; an inconsistent
+reservation that Recovery cannot resolve continues to count toward capacity until operator
+intervention. Look for the Error log `Admission attempt parked after unresolved commit status; Redis state left unchanged.`
+and the `unresolved_parked` category on `gatekeeper.operation.failures`.
+
 Pause Workers for the affected queue and inspect the user's Waiting, Processing, Records,
 Active, pass, identity and attempt keys. Only after confirming there is no live pass, in-flight
 Commit or legitimate reservation, remove the user's Processing and Records entries if they are
@@ -284,8 +294,9 @@ dotnet build Gatekeeper.slnx --configuration Release --no-restore -m:1
 dotnet test Gatekeeper.slnx --configuration Release --no-build --no-restore -m:1
 ```
 
-Run the Redis-backed tests with Docker available in Linux-container mode. The default
-image is `redis:7.0`. To test another image, set `GATEKEEPER_TEST_REDIS_IMAGE`:
+Run the Redis-backed tests with Docker available in Linux-container mode. The full suite,
+including the Cluster test, is verified on Redis 7.0 and 7.4. The default image is
+`redis:7.0`. To override it, set `GATEKEEPER_TEST_REDIS_IMAGE`:
 
 ```bash
 GATEKEEPER_TEST_REDIS_IMAGE=redis:7.4 dotnet test Gatekeeper.slnx --configuration Release --no-build --no-restore -m:1
