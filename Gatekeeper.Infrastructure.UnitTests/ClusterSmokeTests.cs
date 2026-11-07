@@ -1,7 +1,10 @@
 using Gatekeeper.Domain.Exceptions;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using DotNet.Testcontainers.Builders;
+using DotNet.Testcontainers.Containers;
+using Xunit.Abstractions;
 using Gatekeeper.Domain.Enums;
 using Gatekeeper.Domain.Models;
 using Gatekeeper.Domain.ValueObjects;
@@ -9,7 +12,7 @@ using StackExchange.Redis;
 
 namespace Gatekeeper.Infrastructure.UnitTests;
 
-public sealed class ClusterSmokeTests
+public sealed class ClusterSmokeTests(ITestOutputHelper output)
 {
     [Fact]
     public async Task ThreeMasterCluster_RoutesAtomicWorkflowAcrossAllSlotOwners()
@@ -35,19 +38,15 @@ public sealed class ClusterSmokeTests
         var start = string.Join("\n", ports.Select((port, index) =>
             $"mkdir -p /tmp/gatekeeper/{index}\n" +
             $"redis-server --port {port} --bind 0.0.0.0 --protected-mode no --daemonize yes " +
-            $"--dir /tmp/gatekeeper/{index} --save '' --appendonly no --cluster-enabled yes " +
+            $"--dir /tmp/gatekeeper/{index} --logfile /tmp/gatekeeper/{index}/redis.log --save '' --appendonly no --cluster-enabled yes " +
             $"--cluster-config-file nodes.conf --cluster-node-timeout 5000 " +
             $"--cluster-announce-ip 127.0.0.1 --cluster-announce-port {port}"));
-        start += "\nredis-cli --cluster create " + string.Join(" ", ports.Select(p => $"127.0.0.1:{p}"))
-            + " --cluster-replicas 0 --cluster-yes\nwhile :; do sleep 1; done";
-        var ready = string.Join(" && ", ports.Select(p =>
-            $"redis-cli -p {p} cluster info | grep -q 'cluster_state:ok'"));
+        start += "\nwhile :; do sleep 1; done";
         var builder = new ContainerBuilder(TestRedisImage.Name)
-            .WithEntrypoint("/bin/sh").WithCommand("-ec", start)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilCommandIsCompleted("sh", "-c", ready));
+            .WithEntrypoint("/bin/sh").WithCommand("-ec", start);
         foreach (var port in ports) builder = builder.WithPortBinding(port, port);
         await using var cluster = builder.Build();
-        await cluster.StartAsync();
+        await StartReadyClusterAsync(cluster, ports);
         var configuration = new ConfigurationOptions { ConnectTimeout = 10000, SyncTimeout = 10000, AllowAdmin = true };
         foreach (var port in ports) configuration.EndPoints.Add("127.0.0.1", port);
         using var connection = await ConnectionMultiplexer.ConnectAsync(configuration);
@@ -87,6 +86,90 @@ public sealed class ClusterSmokeTests
         }
         foreach (var port in ports)
             Assert.NotEmpty(connection.GetServer("127.0.0.1", port).Keys(pattern: "phase03:*"));
+    }
+
+    private async Task StartReadyClusterAsync(IContainer cluster, IReadOnlyList<int> ports)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        var ct = deadline.Token;
+        var last = "Container not yet started.";
+        try
+        {
+            await cluster.StartAsync(ct);
+            // A daemonized redis-server can return to the shell before its socket accepts connections.
+            while (true)
+            {
+                var pings = await Task.WhenAll(ports.Select(port =>
+                    cluster.ExecAsync(["redis-cli", "-p", port.ToString(), "PING"], ct)));
+                last = string.Join("\n", pings.Select((ping, index) =>
+                    $"{ports[index]} PING: {ping.Stdout}{ping.Stderr}"));
+                if (pings.All(ping => ping.ExitCode == 0 && ping.Stdout.Trim() == "PONG")) break;
+                await Task.Delay(100, ct);
+            }
+
+            string[] create = ["redis-cli", "--cluster", "create", .. ports.Select(port => $"127.0.0.1:{port}"),
+                "--cluster-replicas", "0", "--cluster-yes"];
+            var creation = await cluster.ExecAsync(create, ct);
+            last = $"Cluster creation exit {creation.ExitCode}:\n{creation.Stdout}\n{creation.Stderr}";
+            output.WriteLine(last);
+            if (creation.ExitCode != 0) throw new InvalidOperationException("redis-cli --cluster create failed.");
+
+            while (true)
+            {
+                var views = await Task.WhenAll(ports.Select(async port =>
+                {
+                    var info = await cluster.ExecAsync(["redis-cli", "-p", port.ToString(), "CLUSTER", "INFO"], ct);
+                    var nodes = await cluster.ExecAsync(["redis-cli", "-p", port.ToString(), "CLUSTER", "NODES"], ct);
+                    var fields = info.Stdout.Split('\n', StringSplitOptions.TrimEntries);
+                    var owners = nodes.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(line => line.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                        .Where(parts => parts.Length > 8 && parts[2].Split(',').Contains("master"))
+                        .Select(parts => $"{parts[0]} {string.Join(" ", parts.Skip(8))}")
+                        .Order(StringComparer.Ordinal).ToArray();
+                    var ready = info.ExitCode == 0 && nodes.ExitCode == 0 && owners.Length == 3
+                        && fields.Contains("cluster_state:ok") && fields.Contains("cluster_known_nodes:3")
+                        && fields.Contains("cluster_slots_assigned:16384") && fields.Contains("cluster_slots_ok:16384");
+                    return (Ready: ready, Owners: string.Join("\n", owners),
+                        State: $"--- node {port} ---\n{info.Stdout}{info.Stderr}{nodes.Stdout}{nodes.Stderr}");
+                }));
+                last = string.Join("\n", views.Select(view => view.State));
+                if (views.All(view => view.Ready && view.Owners == views[0].Owners)) break;
+                await Task.Delay(100, ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Cluster readiness failed. Last observed state:\n{last}\n{await StartupDiagnosticsAsync(cluster, ports)}", ex);
+        }
+
+        output.WriteLine(last);
+        output.WriteLine(await StartupDiagnosticsAsync(cluster, ports));
+    }
+
+    private static async Task<string> StartupDiagnosticsAsync(IContainer cluster, IReadOnlyList<int> ports)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var logs = new StringBuilder();
+        try
+        {
+            var (stdout, stderr) = await cluster.GetLogsAsync(ct: deadline.Token);
+            logs.AppendLine($"Container stdout:\n{stdout}\nContainer stderr:\n{stderr}");
+        }
+        catch (Exception ex) { logs.AppendLine($"Container logs unavailable: {ex.Message}"); }
+
+        for (int index = 0; index < ports.Count; index++)
+        {
+            logs.AppendLine($"--- node {ports[index]} log tail ---");
+            try
+            {
+                // Docker can read the log file even if the startup shell exited.
+                var log = await cluster.ReadFileAsync($"/tmp/gatekeeper/{index}/redis.log", deadline.Token);
+                logs.AppendLine(string.Join("\n", Encoding.UTF8.GetString(log).Split('\n').TakeLast(25)));
+            }
+            catch (Exception ex) { logs.AppendLine($"Node log unavailable: {ex.Message}"); }
+        }
+        return logs.ToString();
     }
 
     private static int Owner(int slot) => slot <= 5460 ? 0 : slot <= 10922 ? 1 : 2;
