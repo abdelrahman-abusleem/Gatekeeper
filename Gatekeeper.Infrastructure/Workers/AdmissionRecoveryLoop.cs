@@ -21,13 +21,16 @@ internal sealed class AdmissionRecoveryLoop(IAdmissionRecovery store, QueueOptio
                 failures = Math.Min(AdmissionRetryPolicy.MaxFailures, failures + 1);
                 logger.LogWarning("Admission Recovery paused. Error type: {ErrorType}", ex.GetType().Name);
             }
-            var delay = failures > 0
-                ? retry.Delay(failures)
-                : TimeSpan.FromTicks(Math.Min(options.ReleaseInterval.Ticks, options.ProcessingLease.Ticks));
+            var delay = NextDelay(options, retry, failures);
             try { await Task.Delay(delay, cancellationToken); }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
         }
     }
+
+    internal static TimeSpan NextDelay(QueueOptions options, AdmissionRetryPolicy retry, int failures) =>
+        failures > 0
+            ? retry.Delay(failures)
+            : TimeSpan.FromTicks(Math.Min(options.ReleaseInterval.Ticks, options.ProcessingLease.Ticks));
 
     internal async Task RecoverOnceAsync(CancellationToken cancellationToken)
     {

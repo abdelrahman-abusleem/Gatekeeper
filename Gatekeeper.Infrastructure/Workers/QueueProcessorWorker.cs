@@ -54,6 +54,7 @@ public sealed class QueueProcessorWorker : BackgroundService
         ArgumentNullException.ThrowIfNull(logger);
         _store = store; _tokens = tokens; _notifier = notifier; _options = options.Value; _logger = logger; _clock = clock;
         if (_options.MaxConcurrentAdmissions is < 1 or > 64 || _options.BatchSize is < 1 or > 10000
+            || _options.ProcessingLeaseSeconds is < 1 or > 3600
             || _options.WorkerRetryMaxDelaySeconds is < 1 or > 86400 || _options.ReleaseIntervalSeconds is < 1 or > 86400)
             throw new OptionsValidationException(Options.DefaultName, typeof(QueueOptions), ["Invalid worker scheduling limits."]);
         _retry = new AdmissionRetryPolicy(_options);

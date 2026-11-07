@@ -3,6 +3,7 @@ using Gatekeeper.Domain.Models;
 using Gatekeeper.Domain.ValueObjects;
 using Gatekeeper.Infrastructure.Workers;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Gatekeeper.Infrastructure.UnitTests;
 
@@ -40,6 +41,15 @@ public sealed class RecoveryProgressTests(RedisClaimFixture fixture) : IClassFix
             await deadline.CancelAsync();
             await recovery;
         }
+    }
+
+    [Fact]
+    public void WorkerConstructedOutsideDi_RejectsZeroProcessingLease()
+    {
+        var c = new AdmissionTestContext(fixture);
+        c.Options.ProcessingLeaseSeconds = 0;
+
+        Assert.Throws<OptionsValidationException>(() => c.Worker(new CallbackNotifier(_ => Task.CompletedTask)));
     }
 
     [Theory]
