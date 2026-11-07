@@ -41,7 +41,17 @@ public static class DependencyInjection
 
         var redisConnectionString = configuration.GetConnectionString("Redis") ?? "localhost:6379";
         services.TryAddSingleton<IConnectionMultiplexer>(_ =>
-            ConnectionMultiplexer.Connect(redisConnectionString));
+        {
+            var options = ConfigurationOptions.Parse(redisConnectionString);
+            if (!redisConnectionString.Split(',').Any(part =>
+            {
+                var separator = part.IndexOf('=');
+                return separator >= 0 && part[..separator].Trim().Equals("abortConnect", StringComparison.OrdinalIgnoreCase);
+            }))
+                options.AbortOnConnectFail = false;
+
+            return ConnectionMultiplexer.Connect(options);
+        });
 
         services.TryAddSingleton<IWaitingQueue, RedisWaitingQueue>();
 
