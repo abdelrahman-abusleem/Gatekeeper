@@ -15,6 +15,8 @@ internal sealed class AdmissionLane
     private int _failures;
     private long _failedAt;
     private TimeSpan _retryDelay;
+    private long? _lastUnresolvedAt;
+    private TimeSpan _unresolvedElapsed;
 
     internal AdmissionId EnsureAttemptId()
     {
@@ -29,6 +31,24 @@ internal sealed class AdmissionLane
         _failures = Math.Min(AdmissionRetryPolicy.MaxFailures, _failures + 1);
         _retryDelay = retry.Delay(_failures);
         _failedAt = clock.GetTimestamp();
+    }
+
+    internal bool ObserveUnresolvedCommit(TimeProvider clock, TimeSpan threshold)
+    {
+        var now = clock.GetTimestamp();
+        if (_lastUnresolvedAt is long previous)
+            _unresolvedElapsed += clock.GetElapsedTime(previous, now);
+        _lastUnresolvedAt = now;
+        return _unresolvedElapsed >= threshold;
+    }
+
+    // An outage breaks the observation interval; keep only time already confirmed.
+    internal void PauseUnresolvedCommit() => _lastUnresolvedAt = null;
+
+    internal void ResetUnresolvedCommit()
+    {
+        _lastUnresolvedAt = null;
+        _unresolvedElapsed = TimeSpan.Zero;
     }
 
     internal void PrepareToken(AdmissionClaimResult result, IAdmissionTokenService tokens,
@@ -56,6 +76,7 @@ internal sealed class AdmissionLane
     internal void Clear(bool preserveBackoff = false)
     {
         AttemptId = null; Claim = null; Token = null; CommitUncertain = false; ExpiresAtUtc = default;
+        ResetUnresolvedCommit();
         if (!preserveBackoff)
         {
             _failures = 0;

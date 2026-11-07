@@ -25,6 +25,7 @@ public sealed class QueueProcessorWorker : BackgroundService
     private readonly AdmissionLane[] _lanes;
     private readonly AdmissionRetryPolicy _retry;
     private readonly AdmissionRecoveryLoop _recovery;
+    private readonly TimeSpan _unresolvedCommitThreshold;
     private readonly SemaphoreSlim _iteration = new(1, 1);
     private readonly object _claimStarts = new();
     private Task? _currentBatch;
@@ -57,6 +58,9 @@ public sealed class QueueProcessorWorker : BackgroundService
             || _options.ProcessingLeaseSeconds is < 1 or > 3600
             || _options.WorkerRetryMaxDelaySeconds is < 1 or > 86400 || _options.ReleaseIntervalSeconds is < 1 or > 86400)
             throw new OptionsValidationException(Options.DefaultName, typeof(QueueOptions), ["Invalid worker scheduling limits."]);
+        if (!_options.HasValidRetentionPolicy())
+            throw new OptionsValidationException(Options.DefaultName, typeof(QueueOptions), ["Invalid claim attempt retention policy."]);
+        _unresolvedCommitThreshold = TimeSpan.FromSeconds(_options.ClaimIdAcceptanceWindowSeconds + _options.ClaimAttemptGraceSeconds);
         _retry = new AdmissionRetryPolicy(_options);
         _recovery = new AdmissionRecoveryLoop(_store, _options, _logger, _retry);
         _lanes = Enumerable.Range(0, Math.Min(_options.MaxConcurrentAdmissions, _options.BatchSize))
@@ -210,7 +214,13 @@ public sealed class QueueProcessorWorker : BackgroundService
 
     private async Task<Outcome> ReconcilePendingCommitAsync(AdmissionLane lane, CancellationToken cancellationToken)
     {
-        var status = await _store.GetCommitStatusAsync(lane.Claim!, lane.Token!, cancellationToken);
+        AdmissionCommitStatus status;
+        try { status = await _store.GetCommitStatusAsync(lane.Claim!, lane.Token!, cancellationToken); }
+        catch
+        {
+            lane.PauseUnresolvedCommit();
+            throw;
+        }
         if (status == AdmissionCommitStatus.Committed)
         {
             AdmissionMetrics.Commits.Add(1);
@@ -220,11 +230,26 @@ public sealed class QueueProcessorWorker : BackgroundService
         if (status == AdmissionCommitStatus.Expired) { lane.Clear(); return Outcome.Continue; }
         if (status != AdmissionCommitStatus.NotCommitted)
         {
+            if (status is AdmissionCommitStatus.Unknown or AdmissionCommitStatus.Mismatch or AdmissionCommitStatus.Inconsistent)
+            {
+                if (lane.ObserveUnresolvedCommit(_clock, _unresolvedCommitThreshold))
+                {
+                    // Forget only the local attempt. Redis still fences the user and counts any held capacity.
+                    lane.Clear();
+                    AdmissionMetrics.Failures.Add(1, new KeyValuePair<string, object?>(AdmissionMetricTags.Category,
+                        AdmissionMetricCategories.UnresolvedParked));
+                    _logger.LogError("Admission attempt parked after unresolved commit status; Redis state left unchanged.");
+                    return Outcome.Continue;
+                }
+            }
+            else lane.PauseUnresolvedCommit();
+
             AdmissionMetrics.Failures.Add(1, new KeyValuePair<string, object?>(AdmissionMetricTags.Category, AdmissionMetricCategories.Unresolved));
             _logger.LogWarning("Admission remains unresolved ({Status}); no new attempt started.", status);
             _logger.LogDebug("Commit remains unresolved ({Status}); AdmissionId {AdmissionId}.", status, lane.AttemptId);
             return Outcome.Retry;
         }
+        lane.ResetUnresolvedCommit();
         return await CommitPreparedTokenAsync(lane, cancellationToken);
     }
 

@@ -17,8 +17,9 @@ internal static class AdmissionMetricCategories
     internal const string ProtocolOrDependency = "protocol_or_dependency";
     internal const string Dependency = "dependency";
     internal const string Unresolved = "unresolved";
+    internal const string UnresolvedParked = "unresolved_parked";
     internal const string CommitRejected = "commit_rejected";
-    internal static IReadOnlyList<string> All { get; } = Array.AsReadOnly(new[] { Canceled, Timeout, RedisUnavailable, InvalidInput, ProtocolOrDependency, Dependency, Unresolved, CommitRejected });
+    internal static IReadOnlyList<string> All { get; } = Array.AsReadOnly(new[] { Canceled, Timeout, RedisUnavailable, InvalidInput, ProtocolOrDependency, Dependency, Unresolved, UnresolvedParked, CommitRejected });
 }
 
 internal static class AdmissionMetricReasons
