@@ -128,13 +128,16 @@ At least one healthy Worker host is required to process admissions and perform R
 
 Service registration itself does not connect to Redis. Resolving the shared multiplexer connects synchronously, so Worker startup or an initial API request may wait for the configured connection timeout.
 
-Connection and reconnection policies remain controlled by the consuming host through StackExchange.Redis configuration.
 Gatekeeper uses `abortConnect=false` when the connection string omits it and honors either
-explicit value. In a closed-loopback test with a 1-second connect timeout and no connect
-retries, eight concurrent resolutions shared one multiplexer after about 1.04 seconds.
-Eight later resolutions took 0.071 ms in total with no new connection factory attempts.
-A status lookup during the outage still failed with a Redis connection exception after
-about 6 seconds. The same multiplexer reconnects when Redis becomes available.
+explicit value. The library-created multiplexer uses `BacklogPolicy.FailFast`. Once
+the connection is down, operations that require Redis fail immediately with a Redis
+exception. Short interruptions therefore surface as errors instead of queuing commands.
+In a closed-loopback test, status, enqueue, token validation, and a Worker claim iteration
+all failed closed in under 27 ms after the multiplexer had been resolved.
+
+The same multiplexer reconnects automatically when Redis becomes available. Hosts that prefer
+queued commands or different connection options can register their own `IConnectionMultiplexer`
+before calling `AddGatekeeper`.
 
 ## Basic usage
 
