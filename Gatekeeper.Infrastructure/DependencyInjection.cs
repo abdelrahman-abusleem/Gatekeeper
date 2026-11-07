@@ -50,6 +50,7 @@ public static class DependencyInjection
             }))
                 options.AbortOnConnectFail = false;
 
+            options.BacklogPolicy = BacklogPolicy.FailFast;
             return ConnectionMultiplexer.Connect(options);
         });
 

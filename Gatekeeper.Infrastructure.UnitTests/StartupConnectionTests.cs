@@ -1,8 +1,14 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.Sockets;
 using Gatekeeper.Domain.Abstractions;
 using Gatekeeper.Domain.Enums;
+using Gatekeeper.Domain.Models;
+using Gatekeeper.Domain.ValueObjects;
+using Gatekeeper.Infrastructure.Diagnostics;
+using Gatekeeper.Infrastructure.Workers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using StackExchange.Redis;
@@ -60,6 +66,95 @@ public sealed class StartupConnectionTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task UnavailableRedis_OperationsFailFast()
+    {
+        using var port = ReserveClosedPort();
+        using var provider = CreateProvider(PortOf(port));
+        var multiplexer = provider.GetRequiredService<IConnectionMultiplexer>();
+        Assert.Same(multiplexer, provider.GetRequiredService<IConnectionMultiplexer>());
+        Assert.False(multiplexer.IsConnected);
+
+        var reader = provider.GetRequiredService<IAdmissionReader>();
+        var queue = provider.GetRequiredService<IWaitingQueue>();
+        var validator = provider.GetRequiredService<IAdmissionValidator>();
+        using var worker = ActivatorUtilities.CreateInstance<QueueProcessorWorker>(provider);
+        var now = DateTime.UtcNow;
+        var token = provider.GetRequiredService<IAdmissionTokenService>().GenerateToken(
+            new AdmissionTokenData(AdmissionId.New(), "user", now, now.AddMinutes(5)));
+
+        var timings = new[]
+        {
+            await MeasureRedisFailureAsync("GetStatusAsync", () => reader.GetStatusAsync("user")),
+            await MeasureRedisFailureAsync("EnqueueAsync", () => queue.EnqueueAsync("user")),
+            await MeasureRedisFailureAsync("ValidateAdmissionAsync", () => validator.ValidateAdmissionAsync(token, "user")),
+            await MeasureRedisFailureAsync("Worker claim iteration", () => worker.ProcessBatchAsync(recover: false))
+        };
+
+        Assert.All(timings, AssertFast);
+    }
+
+    [Fact]
+    public void HostSuppliedMultiplexer_IsPreserved()
+    {
+        using var port = ReserveClosedPort();
+        var options = ConfigurationOptions.Parse($"127.0.0.1:{PortOf(port)},abortConnect=false,connectTimeout=1000,connectRetry=0");
+        options.BacklogPolicy = BacklogPolicy.Default;
+        using var multiplexer = ConnectionMultiplexer.Connect(options);
+        using var provider = CreateProvider(PortOf(port), supplied: multiplexer);
+        Assert.Same(multiplexer, provider.GetRequiredService<IConnectionMultiplexer>());
+    }
+
+    [Fact]
+    public async Task UnavailableRedis_WorkerBoundsClaimAndRecoveryAttempts()
+    {
+        using var port = ReserveClosedPort();
+        using var provider = CreateProvider(PortOf(port), releaseInterval: 2);
+        provider.GetRequiredService<IConnectionMultiplexer>();
+        using var worker = ActivatorUtilities.CreateInstance<QueueProcessorWorker>(provider);
+        var operations = new ConcurrentQueue<string>();
+        var bothObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var capture = new AsyncLocal<bool> { Value = true };
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (ReferenceEquals(instrument, AdmissionMetrics.RedisDuration))
+                meterListener.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<double>((_, _, tags, _) =>
+        {
+            if (!capture.Value) return;
+            foreach (var tag in tags)
+            {
+                if (tag.Key != AdmissionMetricTags.Operation || tag.Value is not string operation) continue;
+                operations.Enqueue(operation);
+                if (operations.Contains(AdmissionMetricOperations.Claim) &&
+                    operations.Contains(AdmissionMetricOperations.RecoveryScan))
+                    bothObserved.TrySetResult();
+            }
+        });
+        listener.Start();
+
+        await worker.StartAsync(default);
+        try
+        {
+            await bothObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await Task.Delay(TimeSpan.FromSeconds(3.2));
+        }
+        finally
+        {
+            using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await worker.StopAsync(shutdown.Token);
+        }
+
+        var claims = operations.Count(x => x == AdmissionMetricOperations.Claim);
+        var scans = operations.Count(x => x == AdmissionMetricOperations.RecoveryScan);
+        output.WriteLine($"Worker attempts in bounded outage: claim={claims}, recovery scan={scans}");
+        Assert.Equal(claims + scans, operations.Count);
+        Assert.InRange(claims, 1, 2);
+        Assert.InRange(scans, 1, 2);
+    }
+
+    [Fact]
     public async Task RedisStartsLater_TheSameRegisteredMultiplexerRecovers()
     {
         using var closedPort = ReserveClosedPort();
@@ -67,6 +162,8 @@ public sealed class StartupConnectionTests(ITestOutputHelper output)
         using var provider = CreateProvider(port);
         var multiplexer = provider.GetRequiredService<IConnectionMultiplexer>();
         Assert.False(multiplexer.IsConnected);
+        var reader = provider.GetRequiredService<IAdmissionReader>();
+        AssertFast(await MeasureRedisFailureAsync("Before Redis starts", () => reader.GetStatusAsync("user")));
 
         await using var redis = new RedisBuilder(TestRedisImage.Name).WithPortBinding(port, 6379).Build();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(25));
@@ -75,11 +172,34 @@ public sealed class StartupConnectionTests(ITestOutputHelper output)
         while (!multiplexer.IsConnected) await Task.Delay(50, deadline.Token);
 
         Assert.Same(multiplexer, provider.GetRequiredService<IConnectionMultiplexer>());
-        var reader = provider.GetRequiredService<IAdmissionReader>();
         Assert.Equal(AdmissionStatus.NotFound, await reader.GetStatusAsync("user", deadline.Token));
         await provider.GetRequiredService<IWaitingQueue>().EnqueueAsync("user", deadline.Token);
         Assert.Equal(AdmissionStatus.Waiting, await reader.GetStatusAsync("user", deadline.Token));
+
+        await redis.StopAsync(deadline.Token);
+        while (multiplexer.IsConnected) await Task.Delay(50, deadline.Token);
+        AssertFast(await MeasureRedisFailureAsync("After Redis stops", () => reader.GetStatusAsync("user")));
+
+        await redis.StartAsync(deadline.Token);
+        while (!multiplexer.IsConnected) await Task.Delay(50, deadline.Token);
+        Assert.Same(multiplexer, provider.GetRequiredService<IConnectionMultiplexer>());
+        await provider.GetRequiredService<IWaitingQueue>().EnqueueAsync("after-restart", deadline.Token);
+        Assert.Equal(AdmissionStatus.Waiting, await reader.GetStatusAsync("after-restart", deadline.Token));
     }
+
+    private async Task<(string Operation, TimeSpan Elapsed)> MeasureRedisFailureAsync(string operation, Func<Task> action)
+    {
+        var started = Stopwatch.GetTimestamp();
+        var error = await Assert.ThrowsAnyAsync<RedisException>(
+            () => action().WaitAsync(TimeSpan.FromSeconds(10)));
+        var elapsed = Stopwatch.GetElapsedTime(started);
+        output.WriteLine($"{operation}: {elapsed.TotalMilliseconds:F2} ms, {error.GetType().Name}");
+        return (operation, elapsed);
+    }
+
+    private static void AssertFast((string Operation, TimeSpan Elapsed) result) =>
+        Assert.True(result.Elapsed < TimeSpan.FromSeconds(2),
+            $"{result.Operation} took {result.Elapsed.TotalMilliseconds:F2} ms (expected under 2000 ms).");
 
     private static Socket ReserveClosedPort()
     {
@@ -90,16 +210,24 @@ public sealed class StartupConnectionTests(ITestOutputHelper output)
 
     private static int PortOf(Socket socket) => ((IPEndPoint)socket.LocalEndPoint!).Port;
 
-    private static ServiceProvider CreateProvider(int port, string abortOption = "")
+    private static ServiceProvider CreateProvider(int port, string abortOption = "",
+        IConnectionMultiplexer? supplied = null, int? releaseInterval = null)
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        var settings = new Dictionary<string, string?>
         {
             ["ConnectionStrings:Redis"] = $"127.0.0.1:{port},connectTimeout=1000,connectRetry=0{abortOption}",
             ["JwtSettings:Issuer"] = "test-issuer",
             ["JwtSettings:Audience"] = "test-audience",
             ["JwtSettings:SecretKey"] = Convert.ToBase64String(new byte[32])
-        }).Build();
+        };
+        if (releaseInterval is int seconds)
+        {
+            settings["QueueSettings:ReleaseIntervalSeconds"] = seconds.ToString();
+            settings["QueueSettings:ProcessingLeaseSeconds"] = "1";
+        }
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         var services = new ServiceCollection().AddLogging();
+        if (supplied is not null) services.AddSingleton(supplied);
         services.AddGatekeeper(configuration, addWorker: false);
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
     }
