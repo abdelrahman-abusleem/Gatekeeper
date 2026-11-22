@@ -63,6 +63,8 @@ if not admissionId or admissionId == '' then
     return redis.error_reply('Invalid AdmissionId')
 end
 
+if guidVersion(admissionId) ~= 7 then return { 'INCONSISTENT' } end
+
 if not token or token == '' then
     return redis.error_reply('Invalid token')
 end
@@ -159,9 +161,7 @@ if redis.call('EXISTS', KEYS[4]) == 1 then return { 'TOKEN_EXISTS' } end
 attempt.status = 'COMMITTED'
 attempt.passExpiresAt = expiresAtMs
 local committedAttempt = cjson.encode(attempt)
-local version = guidVersion(admissionId)
-if version ~= 4 and version ~= 7 then return { 'INCONSISTENT' } end
-local cutoff = version == 7 and (uuidTime(admissionId) + window) or nowMs
+local cutoff = uuidTime(admissionId) + window
 local retentionDeadline = math.max(expiresAtMs, cutoff) + grace
 
 redis.call(

@@ -30,7 +30,7 @@ if identity and identity ~= id then return { 'NOT_CURRENT' } end
 local expiry = tonumber(redis.call('ZSCORE', KEYS[4], user))
 local token = redis.call('GET', KEYS[5])
 if not identity and not token and (not expiry or expiry <= now) then return { 'NOT_CURRENT' } end
-if #id ~= 36 or not string.find('47', string.sub(id, 15, 15), 1, true)
+if #id ~= 36 or string.sub(id, 15, 15) ~= '7'
     or not string.find('89ab', string.sub(id, 20, 20), 1, true) then return { 'INCONSISTENT' } end
 local function integer(value, maximum)
     local n = tonumber(value)
@@ -51,7 +51,7 @@ if not ok or type(attempt) ~= 'table' or attempt.status ~= 'COMMITTED'
 attempt.released = true
 local encoded = cjson.encode(attempt)
 -- First mutation may allocate. No fallible parsing follows it; deletes only free validated state.
--- KEEPTTL preserves the existing absolute deadline, including legacy persistent v4 attempts.
+-- KEEPTTL preserves the existing absolute deadline, including persistent attempts.
 redis.call('SET', KEYS[7], encoded, 'KEEPTTL')
 redis.call('ZREM', KEYS[4], user)
 redis.call('DEL', KEYS[5], KEYS[6])

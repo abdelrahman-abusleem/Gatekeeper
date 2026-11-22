@@ -48,7 +48,7 @@ local function validId(id)
         or string.sub(id, 19, 19) ~= '-' or string.sub(id, 24, 24) ~= '-' then return false end
     local hex = string.gsub(id, '-', '')
     return #hex == 32 and string.match(hex, '^%x+$')
-        and string.find('47', string.sub(id, 15, 15), 1, true)
+        and string.sub(id, 15, 15) == '7'
         and string.find('89ab', string.sub(id, 20, 20), 1, true)
 end
 local live = active and tonumber(active) > now

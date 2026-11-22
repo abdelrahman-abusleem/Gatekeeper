@@ -6,7 +6,7 @@
 --   KEYS[5] = Claim Attempt STRING: JSON for the requested AdmissionId.
 --
 -- ARGV (required unless marked optional or mode-specific)
--- ARGV[1] = AdmissionId: canonical lowercase GUID D string; v7 for new attempts, recorded v4 retries supported.
+-- ARGV[1] = AdmissionId: canonical lowercase GUID D string; UUIDv7 only; recorded retries precede the acceptance-window check.
 -- ARGV[2] = MaxActivePasses: positive integer shared Active + Processing capacity.
 -- ARGV[3] = Processing lease: whole milliseconds, 1..3600000.
 -- ARGV[4] = Claim ID acceptance window: whole milliseconds, 1000..3600000.
@@ -76,6 +76,10 @@ local nowMs =
     tonumber(time[1]) * 1000
     + math.floor(tonumber(time[2]) / 1000)
 
+
+local version = guidVersion(admissionId)
+if not version then return { 'ID_INVALID' } end
+if version ~= 7 then return { 'ID_UNSUPPORTED' } end
 
 local existingAttempt =
     redis.call('GET', KEYS[5])
@@ -157,10 +161,7 @@ if existingAttempt then
 end
 
 
--- Recorded attempts above remain reconcilable regardless of age/version.
-local version = guidVersion(admissionId)
-if not version then return { 'ID_INVALID' } end
-if version ~= 7 then return { 'ID_UNSUPPORTED' } end
+-- Recorded UUIDv7 attempts above remain reconcilable regardless of age.
 local created = uuidTime(admissionId)
 if nowMs >= created + window then return { 'ID_EXPIRED' } end
 if created > nowMs + grace then return { 'ID_TOO_FUTURE' } end

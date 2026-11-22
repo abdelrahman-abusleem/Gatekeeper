@@ -219,14 +219,11 @@ public sealed class BoundedAttemptLifecycleTests(RedisClaimFixture fixture) : IC
         Assert.False(await c.Db.KeyExistsAsync(c.TokenKey()));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task OldRecordedClaim_RemainsRecoverableAndTerminalReplayIsFenced(bool legacyV4)
+    [Fact]
+    public async Task OldRecordedClaim_RemainsRecoverableAndTerminalReplayIsFenced()
     {
         var c = new AdmissionTestContext(fixture, configure: UuidRetentionTestSupport.ShortPolicy);
-        var id = legacyV4 ? new AdmissionId(Guid.NewGuid())
-            : UuidRetentionTestSupport.At(await UuidRetentionTestSupport.NowAsync(c.Db) - 3600000);
+        var id = UuidRetentionTestSupport.At(await UuidRetentionTestSupport.NowAsync(c.Db) - 3600000);
         var claim = await UuidRetentionTestSupport.SeedRecordedAsync(c, id);
         Assert.Equal(claim, (await c.Store.ClaimNextAsync(id, 10, c.Options.ProcessingLease)).Claim);
         Assert.Equal(-1, (long)await c.Db.ExecuteAsync("PTTL", c.AttemptKey(claim)));
@@ -247,14 +244,11 @@ public sealed class BoundedAttemptLifecycleTests(RedisClaimFixture fixture) : IC
         Assert.Equal(AdmissionCommitStatus.Expired, await c.Store.GetCommitStatusAsync(claim, "old-token"));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task RecordedOldId_CanCommitWithoutExtendingActive(bool legacyV4)
+    [Fact]
+    public async Task RecordedOldId_CanCommitWithoutExtendingActive()
     {
         var c = new AdmissionTestContext(fixture, configure: UuidRetentionTestSupport.ShortPolicy);
-        var id = legacyV4 ? new AdmissionId(Guid.NewGuid())
-            : UuidRetentionTestSupport.At(await UuidRetentionTestSupport.NowAsync(c.Db) - 3600000);
+        var id = UuidRetentionTestSupport.At(await UuidRetentionTestSupport.NowAsync(c.Db) - 3600000);
         var claim = await UuidRetentionTestSupport.SeedRecordedAsync(c, id);
         var expires = await c.CommitAsync(claim);
         var expiry = new DateTimeOffset(expires).ToUnixTimeMilliseconds();
@@ -267,18 +261,14 @@ public sealed class BoundedAttemptLifecycleTests(RedisClaimFixture fixture) : IC
     [InlineData("QUEUE_EMPTY")]
     [InlineData("CAPACITY_FULL")]
     [InlineData("RECOVERED")]
-    public async Task RecordedLegacyTerminalOutcomes_RemainReadableWithoutImplicitMigration(string status)
+    public async Task RecordedUnsupportedIdentity_IsRejectedWithoutMutation(string status)
     {
         var c = new AdmissionTestContext(fixture);
         var id = new AdmissionId(Guid.NewGuid());
         var payload = System.Text.Json.JsonSerializer.Serialize(new { admissionId = id.ToString(), userId = "user", status });
         var key = c.Options.ClaimAttemptKeyPrefix + id;
         await c.Db.StringSetAsync(key, payload);
-        if (status == "RECOVERED")
-            await Assert.ThrowsAsync<AdmissionClaimUnavailableException>(() => c.Store.ClaimNextAsync(id, 10, c.Options.ProcessingLease));
-        else
-            Assert.Equal(status == "QUEUE_EMPTY" ? AdmissionClaimStatus.QueueEmpty : AdmissionClaimStatus.CapacityFull,
-                (await c.Store.ClaimNextAsync(id, 10, c.Options.ProcessingLease)).Status);
+        await Assert.ThrowsAsync<AdmissionClaimUnavailableException>(() => c.Store.ClaimNextAsync(id, 10, c.Options.ProcessingLease));
         Assert.Equal(-1, (long)await c.Db.ExecuteAsync("PTTL", key));
         Assert.Equal(payload, (await c.Db.StringGetAsync(key)).ToString());
     }
@@ -310,24 +300,28 @@ public sealed class BoundedAttemptLifecycleTests(RedisClaimFixture fixture) : IC
     }
 
     [Fact]
-    public async Task ExistingV4ActiveJwt_RemainsValidAndColdLegacyAttemptIsNotMigrated()
+    public async Task RecordedUnsupportedIdentity_CannotCommitOrRecover()
     {
         var c = new AdmissionTestContext(fixture);
         var claim = await UuidRetentionTestSupport.SeedRecordedAsync(c, new AdmissionId(Guid.NewGuid()));
-        var issued = DateTimeOffset.FromUnixTimeSeconds(
-            (await UuidRetentionTestSupport.NowAsync(c.Db)) / 1000).UtcDateTime;
-        var data = new AdmissionTokenData(claim.AdmissionId, claim.UserId, issued, issued.AddMinutes(5));
-        var token = c.Tokens.GenerateToken(data);
-        await c.Store.CommitAsync(claim, token, data.ExpiresAtUtc);
-        // Equivalent to an already committed pre-upgrade record, whose old writer assigned no TTL.
-        await c.Db.KeyPersistAsync(c.AttemptKey(claim));
-        var original = await c.Db.StringGetAsync(c.AttemptKey(claim));
-        Assert.Equal(claim.AdmissionId, (await c.Tokens.ValidateTokenAsync(token))!.AdmissionId);
-        Assert.Equal(AdmissionCommitStatus.Committed, await c.Store.GetCommitStatusAsync(claim, token));
-        Assert.Equal(-1, (long)await c.Db.ExecuteAsync("PTTL", c.AttemptKey(claim)));
-        Assert.Equal(original, await c.Db.StringGetAsync(c.AttemptKey(claim)));
-        var expiry = new DateTimeOffset(data.ExpiresAtUtc).ToUnixTimeMilliseconds();
-        Assert.Equal(expiry, (long)await c.Db.ExecuteAsync("PEXPIRETIME", c.TokenKey()));
-        Assert.Equal(expiry, (long)await c.Db.ExecuteAsync("PEXPIRETIME", c.IdentityKey()));
+        var attempt = await c.Db.StringGetAsync(c.AttemptKey(claim));
+        await Assert.ThrowsAsync<AdmissionCommitRejectedException>(() => c.CommitAsync(claim));
+        Assert.Equal(attempt, await c.Db.StringGetAsync(c.AttemptKey(claim)));
+        Assert.Equal((0L, 1L, 0L), await c.CountsAsync());
+        Assert.Equal(AdmissionStatus.Inconsistent, await c.Store.GetStatusAsync("user"));
+        Assert.Equal(AdmissionRecoveryStatus.Inconsistent, await c.Store.RecoverAsync(claim));
+        claim = await c.ExpireLeaseAsync(claim);
+        attempt = await c.Db.StringGetAsync(c.AttemptKey(claim));
+        Assert.Equal(AdmissionRecoveryStatus.Inconsistent, await c.Store.RecoverAsync(claim));
+        Assert.Equal(attempt, await c.Db.StringGetAsync(c.AttemptKey(claim)));
+        Assert.Equal((0L, 1L, 0L), await c.CountsAsync());
+    }
+
+    [Fact]
+    public async Task MissingUnsupportedIdentity_HasUnknownCommitStatus()
+    {
+        var c = new AdmissionTestContext(fixture);
+        var claim = new AdmissionClaim(new AdmissionId(Guid.NewGuid()), "user", 1, DateTime.UtcNow.AddSeconds(30));
+        Assert.Equal(AdmissionCommitStatus.Unknown, await c.Store.GetCommitStatusAsync(claim, "token"));
     }
 }

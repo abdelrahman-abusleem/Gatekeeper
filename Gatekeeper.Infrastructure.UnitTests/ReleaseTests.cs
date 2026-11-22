@@ -33,15 +33,23 @@ public sealed class ReleaseTests(RedisClaimFixture fixture) : IClassFixture<Redi
     }
 
     [Fact]
-    public async Task LegacyV4Release_KeepsPersistentAttempt_AndReconciles()
+    public async Task UnsupportedActiveIdentity_CannotReleaseOrAuthorize()
     {
         var c = new AdmissionTestContext(fixture);
-        var claim = await UuidRetentionTestSupport.SeedRecordedAsync(c, new AdmissionId(Guid.NewGuid()));
-        var expiry = await c.CommitAsync(claim);
-        await c.Db.KeyPersistAsync(c.AttemptKey(claim));
-        Assert.Equal(AdmissionReleaseStatus.Released, await c.Store.ReleaseAsync("user", claim.AdmissionId));
-        Assert.Equal(-1, (long)await c.Db.ExecuteAsync("PEXPIRETIME", c.AttemptKey(claim)));
-        Assert.Equal(AdmissionCommitStatus.Expired, await c.Store.GetCommitStatusAsync(claim, "test-token"));
+        var (claim, token, _) = await StatusPollingTests.ActivateAsync(c);
+        var id = new AdmissionId(Guid.NewGuid());
+        var attempt = JsonNode.Parse((await c.Db.StringGetAsync(c.AttemptKey(claim))).ToString())!;
+        attempt["admissionId"] = id.ToString();
+        await c.Db.StringSetAsync(c.Options.ClaimAttemptKeyPrefix + id, attempt.ToJsonString());
+        await StatusPollingTests.SetKeepingExpiryAsync(c, c.IdentityKey(), id.ToString());
+        var original = await c.Db.StringGetAsync(c.Options.ClaimAttemptKeyPrefix + id);
+        Assert.Equal(AdmissionReleaseStatus.Inconsistent, await c.Store.ReleaseAsync("user", id));
+        Assert.Equal(AdmissionStatus.Inconsistent, await c.Store.GetStatusAsync("user"));
+        Assert.Null(await c.Store.GetPassAsync("user"));
+        Assert.Equal(AdmissionValidationStatus.Inconsistent, await c.Store.ValidateAdmissionAsync(token, "user"));
+        Assert.Equal(original, await c.Db.StringGetAsync(c.Options.ClaimAttemptKeyPrefix + id));
+        Assert.Equal(token, (await c.Db.StringGetAsync(c.TokenKey())).ToString());
+        Assert.Equal((0L, 0L, 1L), await c.CountsAsync());
     }
 
     [Fact]

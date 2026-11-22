@@ -45,6 +45,8 @@ for i, expected in ipairs(types) do
     if actual ~= 'none' and actual ~= expected then return { 'INCONSISTENT' } end
 end
 local userId, admissionId = ARGV[1], ARGV[2]
+if guidVersion(admissionId) ~= 7 then return { 'INCONSISTENT' } end
+
 local lease = redis.call('ZSCORE', KEYS[2], userId)
 local raw = redis.call('HGET', KEYS[3], userId)
 local stored = redis.call('GET', KEYS[5])
@@ -73,9 +75,7 @@ if redis.call('ZSCORE', KEYS[4], userId)
     or redis.call('ZSCORE', KEYS[1], userId) then return { 'INCONSISTENT' } end
 attempt.status = 'RECOVERED'
 local resolved = cjson.encode(attempt)
-local version = guidVersion(admissionId)
-if version ~= 4 and version ~= 7 then return { 'INCONSISTENT' } end
-local cutoff = version == 7 and (uuidTime(admissionId) + window) or now
+local cutoff = uuidTime(admissionId) + window
 local deadline = math.max(now, cutoff) + grace
 -- Validate and encode before the first write: Lua errors do not roll back writes.
 redis.call('ZADD', KEYS[1], record.originalScore, userId)

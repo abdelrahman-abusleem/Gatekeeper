@@ -278,20 +278,6 @@ public sealed class StatusPollingTests(RedisClaimFixture fixture) : IClassFixtur
     internal static Task SetKeepingExpiryAsync(AdmissionTestContext c, string key, string value)
         => c.Db.ScriptEvaluateAsync("return redis.call('SET',KEYS[1],ARGV[1],'KEEPTTL')", [key], [value]);
 
-    [Fact]
-    public async Task LegacyV4CommittedPass_IsRetrievableWithoutChangingAttemptRetention()
-    {
-        var c = new AdmissionTestContext(fixture);
-        var claim = await UuidRetentionTestSupport.SeedRecordedAsync(c, new AdmissionId(Guid.NewGuid()));
-        var issued = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds()).UtcDateTime;
-        var token = c.Tokens.GenerateToken(new(claim.AdmissionId, "user", issued, issued.AddMinutes(5)));
-        await c.Store.CommitAsync(claim, token, issued.AddMinutes(5));
-        await c.Db.KeyPersistAsync(c.AttemptKey(claim)); // Existing pre-upgrade persistent terminal record.
-        Assert.Equal(AdmissionStatus.Active, await c.Store.GetStatusAsync("user"));
-        Assert.Equal(token, await c.Store.GetPassAsync("user"));
-        Assert.Equal(-1, (long)await c.Db.ExecuteAsync("PTTL", c.AttemptKey(claim)));
-    }
-
     [Theory]
     [InlineData(-1, true)]
     [InlineData(0, false)]

@@ -54,18 +54,19 @@ if not stored then
     if raw then
         local ok, record = pcall(cjson.decode, raw)
         if not ok or type(record) ~= 'table' or record.userId ~= ARGV[1]
-            or not guidVersion(record.admissionId) or not lease
+            or guidVersion(record.admissionId) ~= 7 or not lease
             or record.admissionId == ARGV[2] then return { 'INCONSISTENT' } end
     elseif lease then return { 'INCONSISTENT' } end
     if activeId == ARGV[2] then return { 'INCONSISTENT' } end
     if activeId or token then
-        if not activeId or not guidVersion(activeId) or not token or not activeExpiry
+        if not activeId or guidVersion(activeId) ~= 7 or not token or not activeExpiry
             or tonumber(activeExpiry) <= now then return { 'INCONSISTENT' } end
     elseif activeExpiry and tonumber(activeExpiry) > now then return { 'INCONSISTENT' } end
     local version = guidVersion(ARGV[2])
-    if version == 4 or (version == 7 and now >= uuidTime(ARGV[2]) + window) then return { 'EXPIRED' } end
+    if version == 7 and now >= uuidTime(ARGV[2]) + window then return { 'EXPIRED' } end
     return { 'UNKNOWN' }
 end
+if guidVersion(ARGV[2]) ~= 7 then return { 'INCONSISTENT' } end
 local ok, attempt = pcall(cjson.decode, stored)
 if not ok or type(attempt) ~= 'table' then return { 'INCONSISTENT' } end
 if attempt.userId ~= ARGV[1] or attempt.admissionId ~= ARGV[2] then
@@ -90,7 +91,7 @@ if attempt.released == true then
     if record then
         local valid, data = pcall(cjson.decode, record)
         if not valid or type(data) ~= 'table' or data.userId ~= ARGV[1]
-            or not guidVersion(data.admissionId) or data.admissionId == ARGV[2] then return { 'INCONSISTENT' } end
+            or guidVersion(data.admissionId) ~= 7 or data.admissionId == ARGV[2] then return { 'INCONSISTENT' } end
     elseif lease then return { 'INCONSISTENT' } end
     return { 'EXPIRED' }
 end
