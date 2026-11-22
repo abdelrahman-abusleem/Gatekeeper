@@ -16,7 +16,7 @@ public sealed class WorkerConfigurationTests
     public void InvalidOptions_AreRejectedThroughExistingStartupValidation(string setting, string value)
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        { [$"QueueSettings:{setting}"] = value }).Build();
+        { ["ConnectionStrings:Redis"] = "localhost:6379", [$"QueueSettings:{setting}"] = value }).Build();
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(config);
         services.AddGatekeeper(config);

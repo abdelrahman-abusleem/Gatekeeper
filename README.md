@@ -85,7 +85,7 @@ These values are illustrative, and the queue values shown match the existing def
 
 Configure them according to your environment:
 
-- **Redis:** Use the actual Redis endpoint. `localhost:6379` is suitable for local development.
+- **Redis:** Supply `ConnectionStrings:Redis` explicitly, unless you register a host-owned `IConnectionMultiplexer` before `AddGatekeeper`. Missing or blank settings fail during registration. Put a local endpoint such as `localhost:6379` in `appsettings.Development.json`.
 - **MaxActivePasses:** Maximum shared capacity for Active admissions and Processing reservations.
 - **MaxWaitingUsers:** Maximum waiting queue size; `0` means no configured waiting limit.
 - **MaxConcurrentAdmissions:** Admission-processing concurrency within each Worker.

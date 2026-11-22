@@ -25,7 +25,8 @@ public sealed class ApiTests(RedisClaimFixture fixture) : IClassFixture<RedisCla
         var services = new ServiceCollection().AddLogging();
         services.AddSingleton<IAdmissionClaimStore>(custom);
         services.AddSingleton<IAdmissionReader>(reader);
-        var configuration = new ConfigurationBuilder().Build();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(
+                new Dictionary<string, string?> { ["ConnectionStrings:Redis"] = "localhost:6379" }).Build();
         services.AddGatekeeper(configuration, addWorker: false);
         services.AddGatekeeper(configuration, addWorker: false);
         using var provider = services.BuildServiceProvider();

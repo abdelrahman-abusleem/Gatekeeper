@@ -24,7 +24,11 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
-        return AddCore(services, configuration.GetConnectionString("Redis") ?? "localhost:6379",
+        var redisConnectionString = configuration.GetConnectionString("Redis");
+        if (string.IsNullOrWhiteSpace(redisConnectionString)
+            && !services.Any(descriptor => descriptor.ServiceType == typeof(IConnectionMultiplexer)))
+            throw new InvalidOperationException("ConnectionStrings:Redis is required unless the host registers IConnectionMultiplexer first.");
+        return AddCore(services, redisConnectionString ?? string.Empty,
             options => options.Bind(configuration.GetSection(QueueOptions.SectionName)),
             options => options.Bind(configuration.GetSection(JwtOptions.SectionName)), addWorker);
     }

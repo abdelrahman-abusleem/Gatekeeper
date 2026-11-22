@@ -29,6 +29,7 @@ public sealed class QueueConfigurationTests
         var builder = Host.CreateApplicationBuilder();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
+            ["ConnectionStrings:Redis"] = "localhost:6379",
             [$"QueueSettings:{name}"] = value,
             ["JwtSettings:SecretKey"] = Convert.ToBase64String(new byte[32]),
             ["JwtSettings:Issuer"] = "test",
@@ -56,6 +57,7 @@ public sealed class QueueConfigurationTests
         var services = new ServiceCollection();
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
+            ["ConnectionStrings:Redis"] = "localhost:6379",
             [$"QueueSettings:{name}"] = value
         }).Build();
         services.AddSingleton<IConfiguration>(config);
@@ -99,6 +101,7 @@ public sealed class Phase03RedisConfigurationTests(RedisClaimFixture fixture) : 
         var settings = typeof(QueueOptions).GetProperties()
             .Where(p => p.PropertyType == typeof(string))
             .ToDictionary(p => "QueueSettings:" + p.Name, p => (string?)p.GetValue(c.Options));
+        settings["ConnectionStrings:Redis"] = "localhost:6379";
         settings["JwtSettings:SecretKey"] = Convert.ToBase64String(new byte[32]);
         settings["JwtSettings:Issuer"] = "test";
         settings["JwtSettings:Audience"] = "test";

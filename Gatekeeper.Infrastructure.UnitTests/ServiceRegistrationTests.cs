@@ -23,7 +23,8 @@ namespace Gatekeeper.Infrastructure.UnitTests
         public void GatekeeperRegistration_CoexistsWithConsumerAddInfrastructure()
         {
             var services = new ServiceCollection();
-            var configuration = new ConfigurationBuilder().Build();
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(
+                new Dictionary<string, string?> { ["ConnectionStrings:Redis"] = "localhost:6379" }).Build();
 
             Assert.Same(services, services.AddInfrastructure(configuration));
             Assert.Same(services, services.AddGatekeeper(configuration, addWorker: false));
@@ -74,6 +75,30 @@ namespace Gatekeeper.Infrastructure.UnitTests
             var services = new ServiceCollection();
             Assert.Throws<ArgumentNullException>(() => services.AddGatekeeper("localhost:6379", null!, _ => { }));
             Assert.Throws<ArgumentNullException>(() => services.AddGatekeeper("localhost:6379", _ => { }, null!));
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData(" ")]
+        public void MissingRedisWithoutHostConnectionIsRejectedAtRegistration(string? connectionString)
+        {
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(
+                new Dictionary<string, string?> { ["ConnectionStrings:Redis"] = connectionString }).Build();
+            var services = new ServiceCollection();
+            var error = Assert.Throws<InvalidOperationException>(() => services.AddGatekeeper(configuration));
+            Assert.Contains("ConnectionStrings:Redis", error.Message);
+            Assert.Throws<InvalidOperationException>(() => services.AddGatekeeper(configuration, addWorker: false));
+        }
+
+        [Fact]
+        public void MissingRedisWithHostConnectionPreservesTheHostInstance()
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton<IConnectionMultiplexer>(fixture.Connection);
+            services.AddGatekeeper(new ConfigurationBuilder().Build(), addWorker: false);
+            using var provider = services.BuildServiceProvider();
+            Assert.Same(fixture.Connection, provider.GetRequiredService<IConnectionMultiplexer>());
         }
 
         [Fact]

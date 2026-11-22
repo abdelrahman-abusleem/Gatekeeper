@@ -16,6 +16,7 @@ public class JwtOptionsValidationTests
         builder.Configuration.AddInMemoryCollection(
             new Dictionary<string, string?>
             {
+                ["ConnectionStrings:Redis"] = "localhost:6379",
                 ["JwtSettings:SecretKey"] = string.Empty,
                 ["JwtSettings:Issuer"] = "TicketingPlatform",
                 ["JwtSettings:Audience"] = "TicketingClients"
@@ -41,6 +42,7 @@ public class JwtOptionsValidationTests
         builder.Configuration.AddInMemoryCollection(
             new Dictionary<string, string?>
             {
+                ["ConnectionStrings:Redis"] = "localhost:6379",
                 ["JwtSettings:SecretKey"] = weakSecret,
                 ["JwtSettings:Issuer"] = "TicketingPlatform",
                 ["JwtSettings:Audience"] = "TicketingClients"
