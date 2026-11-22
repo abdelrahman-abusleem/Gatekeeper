@@ -134,7 +134,17 @@ builder.Services.AddGatekeeper(
     addWorker: false);
 ```
 
-Choose the registration strategy deliberately.
+For code-based configuration, use the overload taking a connection string and callbacks. The callbacks can assign values directly or bind any section names:
+
+```csharp
+builder.Services.AddGatekeeper(
+    builder.Configuration.GetConnectionString("Redis")!,
+    queue => builder.Configuration.GetSection("MyQueue").Bind(queue),
+    jwt => builder.Configuration.GetSection("MyJwt").Bind(jwt),
+    addWorker: false);
+```
+
+Both paths apply the same options validation at host startup. The connection-string overload requires a nonblank string and nonnull callbacks. Choose the registration strategy deliberately.
 
 At least one healthy Worker host is required to process admissions and perform Recovery. API-only hosts still need valid JWT configuration.
 
@@ -144,8 +154,6 @@ Gatekeeper uses `abortConnect=false` when the connection string omits it and hon
 explicit value. The library-created multiplexer uses `BacklogPolicy.FailFast`. Once
 the connection is down, operations that require Redis fail immediately with a Redis
 exception. Short interruptions therefore surface as errors instead of queuing commands.
-In a closed-loopback test, status, enqueue, token validation, and a Worker claim iteration
-all failed closed in under 27 ms after the multiplexer had been resolved.
 
 The same multiplexer reconnects automatically when Redis becomes available. Hosts that prefer
 queued commands or different connection options can register their own `IConnectionMultiplexer`
@@ -201,10 +209,11 @@ A positive waiting limit rejects new entrants with `WaitingQueueFullException`. 
 
 `RemoveAsync` removes Waiting entries only. It does not cancel Processing or revoke Active admission.
 
-Each Worker supplies its own `MaxActivePasses` to enforce shared Active plus Processing
-capacity, so all Workers must use identical queue settings. `MaxConcurrentAdmissions`
-controls lanes inside each Worker. A queue's state shares one Redis Cluster hash slot:
-Cluster can provide high availability, but does not shard writes for that queue.
+Redis enforces the lowest registered `MaxActivePasses` for new reservations: a claim succeeds only while live Active plus Processing occupancy is below the effective capacity at that instant. A lower registration takes effect immediately. It never evicts or revokes existing reservations; occupancy above the lower cap drains through pass expiry, Release or Recovery, and no new reservation is admitted until occupancy falls below the cap. Existing reservation retries remain reconcilable.
+
+`CapacityKey` defaults to `gatekeeper:{admission}:capacity`. Its positive integer record expires after `(2 * ReleaseIntervalSeconds + ProcessingLeaseSeconds) * 1000` milliseconds, which is 150 seconds with the defaults. Lower or equal callers write/refresh it; higher callers cannot raise it or refresh its TTL. When the record is absent or expired, each caller's own capacity applies, so the bound during that window is the highest value among Workers that claim. Identical fleet settings remain recommended.
+
+`MaxConcurrentAdmissions` controls lanes inside each Worker. All state keys, including `CapacityKey`, must be disjoint and share one Redis Cluster hash slot. Cluster can provide high availability, but does not shard writes for that queue.
 
 `EstimatedWaitTime` is a coarse per-Worker heuristic: whole batches ahead,
 `(position - 1) / BatchSize` using integer division, times `ReleaseInterval`. It does
@@ -294,6 +303,8 @@ Admission validation is not atomic with a downstream business transaction. Relea
 The Worker derives JWT issue and expiry times from Redis time returned by the atomic Claim, rounded down to whole seconds, and preserves those values across retries.
 
 Validators allow up to five seconds of clock lag for `nbf` only. The exclusive `now < exp` expiry boundary is enforced without tolerance, followed by Redis-backed admission validation.
+
+UUIDv7 is the only supported admission-attempt format. Flush a development Redis database holding attempts from early development builds before using this version.
 
 UUIDv7 initiation also depends on the host clock, so clock synchronization remains necessary.
 
