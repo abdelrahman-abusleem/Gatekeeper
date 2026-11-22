@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using StackExchange.Redis;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -23,8 +24,37 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
-        services.AddOptions<QueueOptions>()
-            .Bind(configuration.GetSection(QueueOptions.SectionName))
+        return AddCore(services, configuration.GetConnectionString("Redis") ?? "localhost:6379",
+            options => options.Bind(configuration.GetSection(QueueOptions.SectionName)),
+            options => options.Bind(configuration.GetSection(JwtOptions.SectionName)), addWorker);
+    }
+
+    public static IServiceCollection AddGatekeeper(
+        this IServiceCollection services,
+        string redisConnectionString,
+        Action<QueueOptions> configureQueue,
+        Action<JwtOptions> configureJwt,
+        bool addWorker = true)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        if (string.IsNullOrWhiteSpace(redisConnectionString))
+            throw new ArgumentException("A Redis connection string is required.", nameof(redisConnectionString));
+        ArgumentNullException.ThrowIfNull(configureQueue);
+        ArgumentNullException.ThrowIfNull(configureJwt);
+        return AddCore(services, redisConnectionString,
+            options => options.Configure(configureQueue), options => options.Configure(configureJwt), addWorker);
+    }
+
+    private static IServiceCollection AddCore(
+        IServiceCollection services,
+        string redisConnectionString,
+        Action<OptionsBuilder<QueueOptions>> configureQueue,
+        Action<OptionsBuilder<JwtOptions>> configureJwt,
+        bool addWorker)
+    {
+        var queueOptions = services.AddOptions<QueueOptions>();
+        configureQueue(queueOptions);
+        queueOptions
             .ValidateDataAnnotations()
             .Validate(options => options.HasValidRetentionPolicy(),
                 "Attempt acceptance must be 1..3600 seconds and grace must be 1..300 seconds.")
@@ -32,14 +62,14 @@ public static class DependencyInjection
                 "Redis keys must be disjoint and contain the same explicit nonempty Cluster hash tag.")
             .ValidateOnStart();
 
-        services.AddOptions<JwtOptions>()
-            .Bind(configuration.GetSection(JwtOptions.SectionName))
+        var jwtOptions = services.AddOptions<JwtOptions>();
+        configureJwt(jwtOptions);
+        jwtOptions
             .ValidateDataAnnotations()
             .Validate(HasValidSigningKey,
                 "JWT signing key must be valid Base64 containing at least 32 bytes.")
             .ValidateOnStart();
 
-        var redisConnectionString = configuration.GetConnectionString("Redis") ?? "localhost:6379";
         services.TryAddSingleton<IConnectionMultiplexer>(_ =>
         {
             var options = ConfigurationOptions.Parse(redisConnectionString);
