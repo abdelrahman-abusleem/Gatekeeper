@@ -287,7 +287,7 @@ public sealed class StatusPollingTests(RedisClaimFixture fixture) : IClassFixtur
         var c = new AdmissionTestContext(fixture);
         var (_, _, expiry) = await ActivateAsync(c);
         var instant = new DateTimeOffset(expiry).ToUnixTimeMilliseconds() + offset;
-        var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Scripts", "GetAdmissionSnapshot.lua"));
+        var source = ScriptTestSource.Read("GetAdmissionSnapshot.lua");
         // Deterministic boundary proof: only this test-loaded copy pins Redis TIME.
         source = source.Replace("redis.call('TIME')", "{ARGV[3],ARGV[4]}", StringComparison.Ordinal);
         var result = (RedisResult[])(await c.Db.ScriptEvaluateAsync(source,

@@ -308,7 +308,7 @@ UUIDv7 is the only supported admission-attempt format. Flush a development Redis
 
 UUIDv7 initiation also depends on the host clock, so clock synchronization remains necessary.
 
-Lua scripts are embedded in Infrastructure for runtime execution, including executable-only single-file deployments. Copied Lua files are retained for compatibility and inspection; editing those loose files does not modify the embedded protocol.
+Lua scripts are embedded in Infrastructure for runtime execution, including executable-only single-file deployments.
 
 ## Build and test
 

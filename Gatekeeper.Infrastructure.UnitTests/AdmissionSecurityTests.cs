@@ -125,7 +125,7 @@ public sealed class AdmissionSecurityTests(RedisClaimFixture fixture) : IClassFi
     {
         var c = new AdmissionTestContext(fixture);
         var (claim, token, expiry) = await StatusPollingTests.ActivateAsync(c);
-        var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Scripts", "GetAdmissionSnapshot.lua"));
+        var source = ScriptTestSource.Read("GetAdmissionSnapshot.lua");
         var response = (RedisResult[])(await c.Db.ScriptEvaluateAsync(source,
             [c.Options.QueueKey, c.Options.ProcessingQueueKey, c.Options.AdmissionRecordsKey, c.Options.ActivePassesKey,
                 c.TokenKey(), c.IdentityKey()], ["user", "VALIDATE", claim.AdmissionId.ToString(), token,

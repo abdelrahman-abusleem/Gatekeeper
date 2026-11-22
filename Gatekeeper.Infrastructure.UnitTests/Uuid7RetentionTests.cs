@@ -13,7 +13,7 @@ namespace Gatekeeper.Infrastructure.UnitTests;
 
 internal static class UuidRetentionTestSupport
 {
-    public static string ClaimScript => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Scripts", "ClaimNextUser.lua"));
+    public static string ClaimScript => ScriptTestSource.Read("ClaimNextUser.lua");
     public static async Task<long> NowAsync(IDatabase db)
     {
         var time = (RedisResult[])(await db.ExecuteAsync("TIME"))!;

@@ -122,7 +122,7 @@ public sealed class Phase03RedisConfigurationTests(RedisClaimFixture fixture) : 
         Assert.Equal(c.Options.QueueKey, provider.GetRequiredService<IOptions<QueueOptions>>().Value.QueueKey);
         foreach (var file in new[] { "EnqueueUser", "ClaimNextUser", "CommitAdmission", "GetCommitStatus",
             "GetExpiredProcessing", "RecoverAdmission", "GetAdmissionSnapshot", "ReleaseAdmission" })
-            Assert.True(File.Exists(Path.Combine(AppContext.BaseDirectory, "Scripts", file + ".lua")));
+            Assert.True(ScriptTestSource.Exists(file + ".lua"));
     }
 
     [Fact]

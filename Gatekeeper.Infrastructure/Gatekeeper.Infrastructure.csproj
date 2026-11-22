@@ -15,12 +15,6 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Scripts\*.lua" />
-    <!-- Retain contentFiles/output assets for existing consumers and contract tests.
-         Runtime execution uses the assembly resources, including single-file deployment. -->
-    <None Update="Scripts\*.lua" Pack="true" PackagePath="contentFiles/any/any" PackageCopyToOutput="true">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </None>
   </ItemGroup>
 
   <PropertyGroup>

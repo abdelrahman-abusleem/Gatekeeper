@@ -17,7 +17,7 @@ public sealed class ScriptLoadingTests
     {
         var source = RedisScriptSource.Load(name);
         Assert.False(source.IsValueCreated);
-        Assert.Equal(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Scripts", name)), source.Value);
+        Assert.Equal(ScriptTestSource.Read(name), source.Value);
         Assert.Same(source.Value, source.Value);
     }
 
@@ -29,5 +29,21 @@ public sealed class ScriptLoadingTests
         Assert.Contains("Missing.lua", error.Message);
         Assert.Contains("Gatekeeper.Infrastructure.Scripts.Missing.lua", error.Message);
         Assert.IsNotType<TypeInitializationException>(error);
+    }
+}
+
+
+internal static class ScriptTestSource
+{
+    internal static bool Exists(string name) => typeof(RedisScriptSource).Assembly
+        .GetManifestResourceNames().Contains("Gatekeeper.Infrastructure.Scripts." + name);
+
+    internal static string Read(string name)
+    {
+        using var stream = typeof(RedisScriptSource).Assembly.GetManifestResourceStream(
+            "Gatekeeper.Infrastructure.Scripts." + name);
+        Assert.NotNull(stream);
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
     }
 }

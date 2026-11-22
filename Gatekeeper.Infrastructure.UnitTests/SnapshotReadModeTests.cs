@@ -15,7 +15,7 @@ public sealed class SnapshotReadModeTests(RedisClaimFixture fixture) : IClassFix
         if (state == "WAITING") await c.Queue.EnqueueAsync("user");
         else if (state == "PROCESSING") await c.ClaimAsync();
         else await StatusPollingTests.ActivateAsync(c);
-        var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Scripts", "GetAdmissionSnapshot.lua"));
+        var source = ScriptTestSource.Read("GetAdmissionSnapshot.lua");
         // Instrument every Redis command in a test-loaded copy: any GET of the JWT fails the test.
         source = "local function checkedCall(command, ...)\n"
             + "if command == 'GET' and select(1, ...) == KEYS[5] then error('JWT bytes read in STATUS') end\n"
@@ -31,7 +31,7 @@ public sealed class SnapshotReadModeTests(RedisClaimFixture fixture) : IClassFix
     {
         var c = new AdmissionTestContext(fixture);
         var (_, token, _) = await StatusPollingTests.ActivateAsync(c);
-        var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Scripts", "GetAdmissionSnapshot.lua"));
+        var source = ScriptTestSource.Read("GetAdmissionSnapshot.lua");
         var status = (RedisResult[])(await c.Db.ScriptEvaluateAsync(source, Keys(c), ["user", "STATUS"]))!;
         var pass = (RedisResult[])(await c.Db.ScriptEvaluateAsync(source, Keys(c), ["user", "PASS"]))!;
         Assert.Single(status);
@@ -53,7 +53,7 @@ public sealed class SnapshotReadModeTests(RedisClaimFixture fixture) : IClassFix
     public async Task UnexpectedMode_IsExplicitlyRejected(string mode)
     {
         var c = new AdmissionTestContext(fixture);
-        var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Scripts", "GetAdmissionSnapshot.lua"));
+        var source = ScriptTestSource.Read("GetAdmissionSnapshot.lua");
         await Assert.ThrowsAsync<RedisServerException>(() => c.Db.ScriptEvaluateAsync(source, Keys(c), ["user", mode]));
     }
 
