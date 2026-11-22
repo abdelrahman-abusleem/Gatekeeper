@@ -72,6 +72,8 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .Validate(HasValidSigningKey,
                 "JWT signing key must be valid Base64 containing at least 32 bytes.")
+            .Validate(JwtSigningKeys.HasValidAdditionalKeys,
+                "JWT additional keys must contain at most 4 distinct Base64 keys of at least 32 bytes, excluding the signing key.")
             .ValidateOnStart();
 
         services.TryAddSingleton<IConnectionMultiplexer>(_ =>

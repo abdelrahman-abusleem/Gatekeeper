@@ -100,7 +100,19 @@ The value must be Base64-encoded and represent at least 32 cryptographically ran
 
 Never commit the secret to source control or log it.
 
-Signers and validators must share the intended secret, issuer, audience and Redis namespace.
+Signers and validators must share the intended validation keys, issuer, audience and Redis namespace.
+
+### Signing-key rotation
+
+`SecretKey` signs new HS256 passes. `AdditionalSecretKeys` accepts up to four distinct Base64 keys of at least 32 bytes for validation only; none may duplicate `SecretKey` or another entry (including equivalent Base64 with whitespace). New passes carry a `kid` derived from the first eight SHA-256 bytes of the key. Passes without `kid` are checked against all configured keys. Redis still requires the exact current persisted token.
+
+Deploy each configuration change to the affected hosts; the policy is captured at service construction.
+
+1. Add the NEW key to `AdditionalSecretKeys` on ALL hosts (API and Worker), keeping the old `SecretKey`.
+2. Set `SecretKey` to the new key on signing hosts and move the old key into `AdditionalSecretKeys`; remove the new key from the additional list. Apply that final key configuration to API hosts too.
+3. After `PassDuration` has elapsed since the last host stopped signing with the old key, remove the old key from `AdditionalSecretKeys` on all hosts.
+
+For environment configuration, the first additional key is `JwtSettings__AdditionalSecretKeys__0`. Never log keys or bearer tokens.
 
 ## Service registration
 
@@ -275,7 +287,7 @@ The admission check complements the application's existing authentication and bu
 - Use managed secrets, synchronized clocks, consistent fleet configuration, sufficient memory and `noeviction`.
 - Fail closed on Redis outages.
 - Account for storage loss, eviction, arbitrary Redis modifications, acknowledged-write loss during failover and significant clock rollback.
-- Consumers remain responsible for downstream business-operation idempotency and coordinated JWT key rotation.
+- Consumers remain responsible for downstream business-operation idempotency and deploying the signing-key rotation sequence above.
 
 Admission validation is not atomic with a downstream business transaction. Releasing an admission cannot cancel a business operation that was already authorized and started.
 

@@ -9,6 +9,9 @@ public class JwtOptions
     [Required]
     public string SecretKey { get; set; } = string.Empty;
 
+    /// <summary>Up to four additional Base64 keys of at least 32 bytes, accepted only for validation; empty by default.</summary>
+    public string[] AdditionalSecretKeys { get; set; } = [];
+
     [Required]
     public string Issuer { get; set; } = string.Empty;
 

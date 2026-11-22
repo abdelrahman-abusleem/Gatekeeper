@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
 using Gatekeeper.Domain.Abstractions;
 using Gatekeeper.Domain.Models;
 using Gatekeeper.Infrastructure.Configuration;
@@ -46,10 +47,10 @@ public sealed class JwtAdmissionTokenService : IAdmissionTokenService
         _audience = settings.Audience;
         _clock = clock;
         _logger = logger;
-        _signingKey = new SymmetricSecurityKey(
-            Convert.FromBase64String(settings.SecretKey));
+        var keys = JwtSigningKeys.Create(settings);
+        _signingKey = keys[0];
         _credentials = new SigningCredentials(_signingKey, SecurityAlgorithms.HmacSha256);
-        _validationParameters = BuildValidationParameters();
+        _validationParameters = BuildValidationParameters(keys);
     }
 
     public string GenerateToken(AdmissionTokenData data)
@@ -181,13 +182,15 @@ public sealed class JwtAdmissionTokenService : IAdmissionTokenService
         _ => AdmissionMetrics.TokenRejectionReason.SignatureOrFormat
     };
 
-    private TokenValidationParameters BuildValidationParameters()
+    private TokenValidationParameters BuildValidationParameters(SymmetricSecurityKey[] keys)
     {
         return new TokenValidationParameters
         {
             RequireSignedTokens = true,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = _signingKey,
+            IssuerSigningKeyResolver = (_, _, keyId, _) => string.IsNullOrEmpty(keyId)
+                ? keys : keys.Where(key => key.KeyId == keyId),
+            TryAllIssuerSigningKeys = false,
 
             ValidAlgorithms = new[]
             {
@@ -313,5 +316,46 @@ public sealed class JwtAdmissionTokenService : IAdmissionTokenService
         expiresAt = jwt.ValidTo;
 
         return true;
+    }
+}
+
+
+internal static class JwtSigningKeys
+{
+    private const int MaximumAdditionalKeys = 4;
+    private const int MinimumKeyBytes = 32;
+    private const int KeyIdBytes = 8;
+
+    internal static bool HasValidAdditionalKeys(JwtOptions options)
+    {
+        if (options.AdditionalSecretKeys is null || options.AdditionalSecretKeys.Length > MaximumAdditionalKeys
+            || !TryDecode(options.SecretKey, out var primary)) return false;
+        var distinct = new HashSet<string>(StringComparer.Ordinal) { Convert.ToBase64String(primary) };
+        return options.AdditionalSecretKeys.All(value => TryDecode(value, out var bytes)
+            && distinct.Add(Convert.ToBase64String(bytes)));
+    }
+
+    internal static SymmetricSecurityKey[] Create(JwtOptions options) =>
+        new[] { options.SecretKey }.Concat(options.AdditionalSecretKeys).Select(CreateKey).ToArray();
+
+    private static SymmetricSecurityKey CreateKey(string encoded)
+    {
+        var bytes = Convert.FromBase64String(encoded);
+        return new SymmetricSecurityKey(bytes)
+        {
+            KeyId = Base64UrlEncoder.Encode(SHA256.HashData(bytes)[..KeyIdBytes])
+        };
+    }
+
+    private static bool TryDecode(string? encoded, out byte[] bytes)
+    {
+        bytes = [];
+        if (encoded is null) return false;
+        try
+        {
+            bytes = Convert.FromBase64String(encoded);
+            return bytes.Length >= MinimumKeyBytes;
+        }
+        catch (FormatException) { return false; }
     }
 }

@@ -1,3 +1,6 @@
+using Gatekeeper.Domain.Enums;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -552,5 +555,168 @@ public class JwtAdmissionTokenServiceTests
                 Entries.Add(exception.ToString());
             }
         }
+    }
+}
+
+
+public sealed class JwtKeyRotationTests(RedisClaimFixture fixture) : IClassFixture<RedisClaimFixture>
+{
+    [Fact]
+    public async Task AdditionalKeyValidatesUntilRemovedWhileSigningUsesThePrimaryKey()
+    {
+        var primary = NewKey();
+        var additional = NewKey();
+        var oldToken = Service(additional).GenerateToken(Data());
+        var rotating = Service(primary, additional);
+        Assert.NotNull(await rotating.ValidateTokenAsync(oldToken));
+        Assert.Null(await Service(primary).ValidateTokenAsync(oldToken));
+        var currentToken = rotating.GenerateToken(Data());
+        var expectedId = Base64UrlEncoder.Encode(SHA256.HashData(Convert.FromBase64String(primary))[..8]);
+        Assert.Equal(expectedId, new JsonWebToken(currentToken).Kid);
+        Assert.NotNull(await Service(primary).ValidateTokenAsync(currentToken));
+        Assert.Null(await rotating.ValidateTokenAsync(Service(NewKey()).GenerateToken(Data())));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TokensWithoutKeyIdValidateAgainstAnyConfiguredKey(bool useAdditional)
+    {
+        var primary = NewKey();
+        var additional = NewKey();
+        var token = TokenWithoutKeyId(useAdditional ? additional : primary, SecurityAlgorithms.HmacSha256);
+        Assert.True(string.IsNullOrEmpty(new JsonWebToken(token).Kid));
+        Assert.NotNull(await Service(primary, additional).ValidateTokenAsync(token));
+    }
+
+    [Theory]
+    [InlineData(SecurityAlgorithms.None)]
+    [InlineData(SecurityAlgorithms.HmacSha512)]
+    public async Task OtherAlgorithmsAreRejectedDuringRotation(string algorithm)
+    {
+        var primary = NewKey();
+        Assert.Null(await Service(primary, NewKey()).ValidateTokenAsync(TokenWithoutKeyId(primary, algorithm)));
+    }
+
+    [Fact]
+    public async Task UnknownKeyIdIsRejectedEvenWhenTheSignatureUsesThePrimaryKey()
+    {
+        var key = NewKey();
+        var descriptor = Descriptor(key, SecurityAlgorithms.HmacSha256);
+        descriptor.SigningCredentials.Key.KeyId = "unknown-key";
+        var token = new JsonWebTokenHandler().CreateToken(descriptor);
+        Assert.Null(await Service(key).ValidateTokenAsync(token));
+    }
+
+    [Theory]
+    [InlineData("count")]
+    [InlineData("base64")]
+    [InlineData("length")]
+    [InlineData("duplicate")]
+    [InlineData("primary")]
+    [InlineData("equivalent-primary")]
+    [InlineData("null")]
+    public async Task InvalidAdditionalKeysFailAtStartupWithoutExposingKeyMaterial(string fault)
+    {
+        var primary = NewKey();
+        var extra = NewKey();
+        var builder = Host.CreateApplicationBuilder();
+        builder.Logging.ClearProviders();
+        builder.Services.AddGatekeeper("localhost:6379", _ => { }, options =>
+        {
+            options.SecretKey = primary;
+            options.Issuer = "rotation-tests";
+            options.Audience = "rotation-clients";
+            options.AdditionalSecretKeys = fault switch
+            {
+                "count" => Enumerable.Range(0, 5).Select(_ => NewKey()).ToArray(),
+                "base64" => ["invalid-base64"],
+                "length" => [Convert.ToBase64String(new byte[16])],
+                "duplicate" => [extra, extra],
+                "primary" => [primary],
+                "equivalent-primary" => [" " + primary + " "],
+                _ => null!
+            };
+        }, addWorker: false);
+        using var host = builder.Build();
+        var error = await Assert.ThrowsAsync<OptionsValidationException>(() => host.StartAsync());
+        Assert.False(error.ToString().Contains(primary, StringComparison.Ordinal), "Validation errors must not contain key material.");
+        Assert.False(error.ToString().Contains(extra, StringComparison.Ordinal), "Validation errors must not contain key material.");
+    }
+
+    [Fact]
+    public async Task ValidationDiagnosticsDoNotExposeConfiguredKeysOrTokens()
+    {
+        var primary = NewKey();
+        var additional = NewKey();
+        var logs = new TokenLogs();
+        var service = new JwtAdmissionTokenService(Options.Create(Settings(primary, additional)), logs);
+        var token = service.GenerateToken(Data());
+        await service.ValidateTokenAsync(token);
+        await service.ValidateTokenAsync(Service(NewKey()).GenerateToken(Data()));
+        Assert.NotEmpty(logs.Messages);
+        Assert.False(logs.Messages.Any(message => new[] { primary, additional, token }.Any(message.Contains)),
+            "Token diagnostics must not contain keys or bearer data.");
+    }
+
+    [Fact]
+    public async Task RotatedKeyCannotAuthorizeASignedButNonCurrentRedisToken()
+    {
+        var c = new AdmissionTestContext(fixture);
+        var (_, token, _) = await StatusPollingTests.ActivateAsync(c);
+        var data = (await c.Tokens.ValidateTokenAsync(token))!;
+        var settings = JwtTests.Settings();
+        var persisted = new JsonWebToken(token);
+        settings.Issuer = persisted.Issuer;
+        settings.Audience = persisted.Audiences.Single();
+        settings.AdditionalSecretKeys = [settings.SecretKey];
+        settings.SecretKey = NewKey();
+        var tokens = new JwtAdmissionTokenService(Options.Create(settings), NullLogger<JwtAdmissionTokenService>.Instance);
+        var replacement = tokens.GenerateToken(data);
+        Assert.NotNull(await tokens.ValidateTokenAsync(replacement));
+        var store = new RedisAdmissionClaimStore(fixture.Connection, Options.Create(c.Options),
+            NullLogger<RedisAdmissionClaimStore>.Instance, tokens);
+        Assert.Equal(AdmissionValidationStatus.Valid, await store.ValidateAdmissionAsync(token, "user"));
+        Assert.Equal(AdmissionValidationStatus.Inactive, await store.ValidateAdmissionAsync(replacement, "user"));
+    }
+
+    private static string NewKey() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+    private static AdmissionTokenData Data()
+    {
+        var issued = DateTimeOffset.FromUnixTimeSeconds(TimeProvider.System.GetUtcNow().ToUnixTimeSeconds()).UtcDateTime;
+        return new(AdmissionId.New(), "user", issued, issued.AddMinutes(5));
+    }
+    private static JwtOptions Settings(string primary, params string[] additional) => new()
+    {
+        SecretKey = primary, AdditionalSecretKeys = additional,
+        Issuer = "rotation-tests", Audience = "rotation-clients"
+    };
+    private static JwtAdmissionTokenService Service(string primary, params string[] additional) =>
+        new(Options.Create(Settings(primary, additional)), NullLogger<JwtAdmissionTokenService>.Instance);
+    private static string TokenWithoutKeyId(string key, string algorithm) =>
+        new JsonWebTokenHandler().CreateToken(Descriptor(key, algorithm));
+    private static SecurityTokenDescriptor Descriptor(string key, string algorithm)
+    {
+        var data = Data();
+        return new SecurityTokenDescriptor
+        {
+            Claims = new Dictionary<string, object>
+            {
+                ["sub"] = data.UserId, ["jti"] = data.AdmissionId.ToString(), ["type"] = "admission_pass"
+            },
+            Issuer = "rotation-tests", Audience = "rotation-clients",
+            IssuedAt = data.IssuedAtUtc, NotBefore = data.IssuedAtUtc, Expires = data.ExpiresAtUtc,
+            SigningCredentials = algorithm == SecurityAlgorithms.None ? null
+                : new SigningCredentials(new SymmetricSecurityKey(Convert.FromBase64String(key)), algorithm)
+        };
+    }
+
+    private sealed class TokenLogs : ILogger<JwtAdmissionTokenService>
+    {
+        internal List<string> Messages { get; } = [];
+        public bool IsEnabled(LogLevel level) => true;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public void Log<TState>(LogLevel level, EventId id, TState state, Exception? error,
+            Func<TState, Exception?, string> formatter) => Messages.Add(formatter(state, error));
     }
 }
