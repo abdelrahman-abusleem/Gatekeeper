@@ -1,12 +1,97 @@
 # Gatekeeper
 
-Gatekeeper provides Redis-backed virtual waiting rooms and controlled admission for distributed .NET applications.
+Gatekeeper provides Redis-backed virtual waiting rooms and controlled admission for distributed .NET 10 applications. Hosts enqueue trusted identities; Workers reserve capacity, sign JWT admission passes and commit exact admission state in Redis. Optional ASP.NET Core authorization guards protected endpoints alongside the host's authentication.
 
-Applications enqueue trusted user identities; background Workers reserve capacity, issue JWT admission passes, and commit admission state in Redis.
+[![CI](https://github.com/abdelrahman-abusleem/Gatekeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/abdelrahman-abusleem/Gatekeeper/actions/workflows/ci.yml)
 
-The project is open source under the [MIT License](LICENSE).
+## Quick start
 
-## Features and architecture
+Use a .NET 10 ASP.NET Core host with the packages below. Connect your host's existing login flow to cookie authentication and issue a trusted `ClaimTypes.NameIdentifier` claim for each user.
+
+`appsettings.json`:
+
+```json
+{
+  "ConnectionStrings": { "Redis": "localhost:6379" },
+  "QueueSettings": { "MaxActivePasses": 50, "MaxWaitingUsers": 0, "MaxConcurrentAdmissions": 1 },
+  "JwtSettings": { "Issuer": "your-admission-issuer", "Audience": "your-admission-consumers" }
+}
+```
+
+Supply a Base64 signing key of at least 32 random bytes through configuration. For a temporary development key in PowerShell:
+
+```powershell
+$env:JwtSettings__SecretKey = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+```
+
+`Program.cs`:
+
+```csharp
+using System.Security.Claims;
+using Gatekeeper.AspNetCore;
+using Gatekeeper.Domain.Abstractions;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie();
+builder.Services.AddAuthorization(options => options.DefaultPolicy = new AuthorizationPolicyBuilder()
+    .RequireAuthenticatedUser().RequireClaim(ClaimTypes.NameIdentifier).Build());
+builder.Services.AddGatekeeper(builder.Configuration);
+builder.Services.AddGatekeeperAdmission(options =>
+    options.UserIdResolver = user => user.FindFirstValue(ClaimTypes.NameIdentifier));
+
+var app = builder.Build();
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapPost("/queue", (ClaimsPrincipal user, IWaitingQueue queue, CancellationToken cancellationToken) =>
+    queue.EnqueueAsync(user.FindFirstValue(ClaimTypes.NameIdentifier)!, cancellationToken))
+    .RequireAuthorization();
+app.MapGet("/admission", async (ClaimsPrincipal user, IAdmissionReader reader, CancellationToken cancellationToken) =>
+{
+    var userId = user.FindFirstValue(ClaimTypes.NameIdentifier)!;
+    return new
+    {
+        Status = (await reader.GetStatusAsync(userId, cancellationToken)).ToString(),
+        Pass = await reader.GetPassAsync(userId, cancellationToken)
+    };
+}).RequireAuthorization();
+app.MapGet("/protected", () => Results.Ok("Admitted")).RequireGatekeeperAdmission();
+app.Run();
+```
+
+Run the host, authenticate through your login flow, then POST `/queue` and poll GET `/admission` with backoff. Send the returned pass in the `X-Gatekeeper-Admission` header, together with your host authentication, when calling `/protected`. Status and notifications are informational; only `AdmissionValidationStatus.Valid` authorizes admission. Treat pass responses as private and prevent public caching.
+
+## How it works
+
+```mermaid
+flowchart LR
+    Client["Browser or client"] --> Api["Host API with host authentication"]
+    Api --> Queue["IWaitingQueue"]
+    Api --> Reader["IAdmissionReader"]
+    Api --> Endpoint["Protected endpoint: RequireGatekeeperAdmission"]
+    Endpoint --> Validator["IAdmissionValidator"]
+    Queue --> Redis["Redis: Waiting, Processing, Active and Lua scripts"]
+    Reader --> Redis
+    Validator --> Redis
+    Worker["Worker: claim, sign JWT, commit and recovery"] --> Redis
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Waiting
+    Waiting --> Processing: Claim
+    Processing --> Active: Commit
+    Processing --> Waiting: Lease expiry and Recovery restore original position
+    Active --> Released: Release
+    Active --> Expired: Pass expiry
+    Released --> [*]
+    Expired --> [*]
+```
+
+Claim reserves Active-plus-Processing capacity atomically. The Worker signs a JWT and commits its exact bytes and identity in Redis. Recovery restores a matching expired Processing reservation at its original FIFO position. A timeout leaves an uncertain outcome: the Worker retains the same attempt and prepared token for reconciliation. Release fences the expected identity and cannot remove a replacement.
+
+### Features and architecture
 
 - FIFO selection from Waiting using Redis sequence scores; Recovery restores original queue position.
 - Atomic Redis/Lua Claim, Commit, Recovery and identity-fenced Release.
@@ -25,7 +110,21 @@ Redis is authoritative shared state. Consumer hosts own authentication, identity
 
 FIFO selection does not imply concurrent signing/Commit completion order, and admission does not guarantee exactly-once business execution.
 
-## Requirements
+## Install
+
+```bash
+dotnet add package Gatekeeper.Infrastructure --prerelease
+```
+
+For ASP.NET Core endpoint authorization, also install:
+
+```bash
+dotnet add package Gatekeeper.AspNetCore --prerelease
+```
+
+Both packages reference `Gatekeeper.Domain` at the same package version.
+
+### Requirements
 
 - .NET 10 SDK
 - Redis 7.0 or later
@@ -34,29 +133,6 @@ FIFO selection does not imply concurrent signing/Commit completion order, and ad
 Redis should be protected with appropriate network access controls and configured with `noeviction`.
 
 Redis 7.0 is the minimum supported version because the Lua scripts use `PEXPIRETIME`.
-
-## Getting started
-
-Clone the repository:
-
-```bash
-git clone https://github.com/abdelrahman-abusleem/Gatekeeper.git
-cd Gatekeeper
-```
-
-Reference the relevant Gatekeeper projects from your .NET application:
-
-```bash
-dotnet add YourApp.csproj reference Gatekeeper/Gatekeeper.Infrastructure/Gatekeeper.Infrastructure.csproj
-```
-
-For optional ASP.NET Core admission authorization:
-
-```bash
-dotnet add YourWebApp.csproj reference Gatekeeper/Gatekeeper.AspNetCore/Gatekeeper.AspNetCore.csproj
-```
-
-Adjust the relative paths to match the location of your application and the cloned repository.
 
 ## Configuration
 
@@ -159,7 +235,13 @@ The same multiplexer reconnects automatically when Redis becomes available. Host
 queued commands or different connection options can register their own `IConnectionMultiplexer`
 before calling `AddGatekeeper`.
 
-## Basic usage
+## ASP.NET Core quick start
+
+The complete Quick start above registers `AddGatekeeperAdmission`, resolves trusted identities from the authenticated host principal, and applies `RequireGatekeeperAdmission()` to `/protected`. Its default header is `X-Gatekeeper-Admission`. The admission requirement composes with the host's default and named authorization policies; do not combine it with `AllowAnonymous`.
+
+## Operating notes
+
+### Basic usage
 
 The consuming application must establish the user's identity through its own authentication and authorization process.
 
@@ -167,37 +249,6 @@ Do not treat a user ID supplied directly in a request as proof of ownership.
 
 Inside an already-started application host:
 
-```csharp
-using Gatekeeper.Domain.Abstractions;
-using Gatekeeper.Domain.Enums;
-using Microsoft.Extensions.DependencyInjection;
-
-var queue = host.Services.GetRequiredService<IWaitingQueue>();
-var reader = host.Services.GetRequiredService<IAdmissionReader>();
-var validator = host.Services.GetRequiredService<IAdmissionValidator>();
-
-var position = await queue.EnqueueAsync(
-    trustedUserId,
-    cancellationToken);
-
-var status = await reader.GetStatusAsync(
-    trustedUserId,
-    cancellationToken);
-
-var pass = await reader.GetPassAsync(
-    trustedUserId,
-    cancellationToken);
-
-if (pass is not null &&
-    await validator.ValidateAdmissionAsync(
-        pass,
-        trustedUserId,
-        cancellationToken) == AdmissionValidationStatus.Valid)
-{
-    // Admission is currently authorized.
-    // Apply the application's business rules before proceeding.
-}
-```
 
 An admission pass may not be available immediately after enqueueing.
 
@@ -226,13 +277,6 @@ a Worker can still admit them and occupy a slot until `PassDuration` expires or 
 releases that admission. Remove the Waiting entry or release the current admission using
 the expected ID the host already knows for this authorized user:
 
-```csharp
-var releaser = host.Services.GetRequiredService<IAdmissionReleaser>();
-if (status == AdmissionStatus.Waiting)
-    await queue.RemoveAsync(trustedUserId, cancellationToken);
-else if (status == AdmissionStatus.Active && expectedAdmissionId is { } id)
-    await releaser.ReleaseAsync(trustedUserId, id, cancellationToken);
-```
 
 State can change between the read and the action. Recheck if removal loses a race with
 Claim; Processing is not canceled by either operation.
@@ -242,17 +286,6 @@ Claim; Processing is not canceled by either operation.
 Gatekeeper publishes the payload `ready` on `<NotifyChannelPrefix><userId>` through
 best-effort Redis Pub/Sub. Use it to refresh status, never to authorize admission:
 
-```csharp
-using StackExchange.Redis;
-
-// The host must authorize each user to subscribe only to their own channel.
-await redis.GetSubscriber().SubscribeAsync(
-    RedisChannel.Literal(queueOptions.NotifyChannelPrefix + trustedUserId),
-    (_, message) =>
-    {
-        if (message == "ready") SignalStatusRefresh();
-    });
-```
 
 ### Inconsistent Redis state
 
@@ -274,17 +307,7 @@ Active, pass, identity and attempt keys. Only after confirming there is no live 
 Commit or legitimate reservation, remove the user's Processing and Records entries if they are
 confirmed orphans. If authority remains unclear, leave the state intact for investigation.
 
-## ASP.NET Core integration
-
-Gatekeeper provides optional ASP.NET Core admission authorization.
-
-The consuming application remains responsible for authentication and determining the trusted user identity.
-
-Configure a trusted `UserIdResolver` and use `RequireGatekeeperAdmission()` on endpoints that require an active admission.
-
-The admission check complements the application's existing authentication and business authorization; it does not replace them.
-
-## Security and operating assumptions
+### Security and operating assumptions
 
 - Validate admission using `IAdmissionValidator.ValidateAdmissionAsync`. Only `AdmissionValidationStatus.Valid` authorizes admission.
 - Cryptographic JWT validation alone, Active status, or ready notifications are insufficient.
@@ -310,7 +333,17 @@ UUIDv7 initiation also depends on the host clock, so clock synchronization remai
 
 Lua scripts are embedded in Infrastructure for runtime execution, including executable-only single-file deployments.
 
-## Build and test
+## Known limitations
+
+- All state for one queue shares one Redis Cluster slot; Cluster does not shard that queue's writes.
+- Waiting entries have no TTL or liveness tracking. Abandoned entries may be admitted until removed.
+- Lowering capacity does not revoke existing reservations. With no live capacity record, callers use their own values until registration.
+- Pub/Sub wakeups are best effort. Poll with backoff and validate every protected operation.
+- Admission authorization is not atomic with downstream business work; consumers own business-operation idempotency.
+- Redis loss, eviction, arbitrary writes, acknowledged-write loss during failover and significant clock rollback can undermine authority. Use synchronized clocks, sufficient memory and `noeviction`.
+- Deploy JWT rotation in the documented sequence across API and Worker hosts; options are captured at service construction.
+
+## Build from source
 
 From the repository root:
 
@@ -336,6 +369,29 @@ The tests use disposable Redis resources and cover Domain behavior, Workers, Red
 Do not point test infrastructure at production Redis.
 
 Keep generated output, local credentials and environment-specific configuration out of source control.
+
+### Project references
+
+Clone the repository:
+
+```bash
+git clone https://github.com/abdelrahman-abusleem/Gatekeeper.git
+cd Gatekeeper
+```
+
+Reference the relevant Gatekeeper projects from your .NET application:
+
+```bash
+dotnet add YourApp.csproj reference Gatekeeper/Gatekeeper.Infrastructure/Gatekeeper.Infrastructure.csproj
+```
+
+For optional ASP.NET Core admission authorization:
+
+```bash
+dotnet add YourWebApp.csproj reference Gatekeeper/Gatekeeper.AspNetCore/Gatekeeper.AspNetCore.csproj
+```
+
+Adjust the relative paths to match the location of your application and the cloned repository.
 
 ## License
 
