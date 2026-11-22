@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <!-- The owner may rename the package later in this single place. -->
+    <PackageId>Gatekeeper.AspNetCore</PackageId>
+    <Description>ASP.NET Core endpoint authorization using Gatekeeper admission validation alongside host authentication.</Description>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>

@@ -1,0 +1,30 @@
+<Project>
+  <!-- Seed the packable projects before this early-imported file applies shared metadata. -->
+  <PropertyGroup Condition="'$(IsPackable)' == '' and ('$(MSBuildProjectName)' == 'Gatekeeper.Domain' or '$(MSBuildProjectName)' == 'Gatekeeper.Infrastructure' or '$(MSBuildProjectName)' == 'Gatekeeper.AspNetCore')">
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionSuffix>preview.1</VersionSuffix>
+    <Authors>Abdelrahman Abusleem</Authors>
+    <Copyright>Copyright (c) 2026 Abdelrahman Abusleem</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/abdelrahman-abusleem/Gatekeeper.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/abdelrahman-abusleem/Gatekeeper</PackageProjectUrl>
+    <PackageReadmeFile>PACKAGE_README.md</PackageReadmeFile>
+    <PackageTags>redis;waiting-room;queue;admission-control;jwt;aspnetcore</PackageTags>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <DebugType>portable</DebugType>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)PACKAGE_README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

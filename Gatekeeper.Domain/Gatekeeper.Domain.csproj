@@ -1,6 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <!-- The owner may rename the package later in this single place. -->
+    <PackageId>Gatekeeper.Domain</PackageId>
+    <Description>Contracts, identities, results and exceptions for Gatekeeper waiting rooms and admission.</Description>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
