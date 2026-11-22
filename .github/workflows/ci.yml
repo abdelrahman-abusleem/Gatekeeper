@@ -1,0 +1,71 @@
+name: CI
+on:
+  push:
+    branches: [master]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        redis: ["redis:7.0", "redis:7.4"]
+    env:
+      GATEKEEPER_TEST_REDIS_IMAGE: ${{ matrix.redis }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore Gatekeeper.slnx
+      - run: dotnet build Gatekeeper.slnx --configuration Release --no-restore -m:1
+      - run: dotnet test Gatekeeper.slnx --configuration Release --no-build --no-restore -m:1
+  package:
+    needs: test
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7.4
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 1s
+          --health-timeout 3s --health-retries 30
+    env:
+      GATEKEEPER_SMOKE_REDIS: localhost:6379
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet pack Gatekeeper.slnx --configuration Release --output artifacts/packages
+      - name: Configure the local package feed
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          import xml.etree.ElementTree as E
+          config = E.Element("configuration")
+          sources = E.SubElement(config, "packageSources")
+          E.SubElement(sources, "clear")
+          E.SubElement(sources, "add", key="local", value=str(Path("artifacts/packages").resolve()))
+          E.SubElement(sources, "add", key="nuget.org", value="https://api.nuget.org/v3/index.json")
+          E.ElementTree(config).write(Path(os.environ["RUNNER_TEMP"]) / "gatekeeper.nuget.config", encoding="unicode")
+      - name: Run the package consumer smoke test
+        run: |
+          dotnet restore tools/PackageSmokeTest/PackageSmokeTest.csproj --configfile "$RUNNER_TEMP/gatekeeper.nuget.config"
+          dotnet run --project tools/PackageSmokeTest/PackageSmokeTest.csproj --configuration Release --no-restore
+      - name: Run the framework-dependent single-file consumer
+        run: |
+          dotnet publish tools/PackageSmokeTest/PackageSmokeTest.csproj --configuration Release --runtime linux-x64 -p:SelfContained=false -p:PublishSingleFile=true -p:RestoreConfigFile="$RUNNER_TEMP/gatekeeper.nuget.config" --output "$RUNNER_TEMP/smoke"
+          "$RUNNER_TEMP/smoke/PackageSmokeTest"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gatekeeper-packages
+          path: artifacts/packages/*
