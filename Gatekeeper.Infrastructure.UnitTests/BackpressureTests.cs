@@ -1,3 +1,6 @@
+using Gatekeeper.Domain.Models;
+using Gatekeeper.Infrastructure.Configuration;
+using Gatekeeper.Infrastructure.Services;
 using Gatekeeper.Domain.Enums;
 using Gatekeeper.Domain.Exceptions;
 using Gatekeeper.Domain.ValueObjects;
@@ -98,4 +101,219 @@ public sealed class BackpressureTests(RedisClaimFixture fixture) : IClassFixture
         await container.StopAsync();
         await Assert.ThrowsAnyAsync<RedisException>(() => c.Queue.EnqueueAsync("new"));
     }
+}
+
+
+public sealed class SharedCapacityTests(RedisClaimFixture fixture) : IClassFixture<RedisClaimFixture>
+{
+    [Fact]
+    public async Task RegisteredLowerCapacity_BoundsConcurrentMixedCallers()
+    {
+        var c = new AdmissionTestContext(fixture, capacity: 5);
+        await c.ClaimAsync("reserved");
+        await EnqueueUsersAsync(c);
+        await Task.WhenAll(Enumerable.Range(0, 50).Select(async i =>
+        {
+            await ClaimAsync(c, i % 2 == 0 ? 5 : 10);
+            var counts = await c.CountsAsync();
+            Assert.InRange(counts.Active + counts.Processing, 1, 5);
+        }));
+        Assert.Equal((46L, 5L, 0L), await c.CountsAsync());
+    }
+
+    [Fact]
+    public async Task LoweringCapacity_PreservesReservationsAndBlocksUntilTheyDrain()
+    {
+        var c = new AdmissionTestContext(fixture);
+        var claims = new List<AdmissionClaim>();
+        for (int i = 0; i < 6; i++) claims.Add(await c.ClaimAsync("held-" + i));
+        await c.Queue.EnqueueAsync("next");
+        Assert.Equal(AdmissionClaimStatus.CapacityFull, (await ClaimAsync(c, 5)).Status);
+        Assert.Equal("5", (await c.Db.StringGetAsync(c.Options.CapacityKey)).ToString());
+        Assert.Equal(AdmissionClaimStatus.CapacityFull, (await ClaimAsync(c, 10)).Status);
+        Assert.Equal((1L, 6L, 0L), await c.CountsAsync());
+        foreach (var claim in claims)
+        {
+            await c.CommitAsync(claim);
+            var counts = await c.CountsAsync();
+            Assert.Equal(6, counts.Active + counts.Processing);
+        }
+        foreach (var claim in claims.Take(2))
+            Assert.Equal(AdmissionReleaseStatus.Released, await c.Store.ReleaseAsync(claim.UserId, claim.AdmissionId));
+        Assert.Equal((1L, 0L, 4L), await c.CountsAsync());
+        Assert.Equal(AdmissionClaimStatus.Claimed, (await ClaimAsync(c, 10)).Status);
+        Assert.Equal((0L, 1L, 4L), await c.CountsAsync());
+        Assert.Equal(AdmissionClaimStatus.CapacityFull, (await ClaimAsync(c, 10)).Status);
+    }
+
+    [Fact]
+    public async Task AbsentRegistration_BoundsConcurrentCallersAtTheirOwnCapacity()
+    {
+        var c = new AdmissionTestContext(fixture);
+        await EnqueueUsersAsync(c);
+        await Task.WhenAll(Enumerable.Range(0, 50).Select(async _ =>
+        {
+            await ClaimAsync(c, 10);
+            var counts = await c.CountsAsync();
+            Assert.InRange(counts.Active + counts.Processing, 0, 10);
+        }));
+        Assert.Equal((40L, 10L, 0L), await c.CountsAsync());
+    }
+
+    [Fact]
+    public async Task EqualCapacity_RefreshesTtlAndHigherCapacityCannotRefreshOrRaiseIt()
+    {
+        var c = new AdmissionTestContext(fixture);
+        await ClaimAsync(c, 5);
+        await c.Db.KeyExpireAsync(c.Options.CapacityKey, TimeSpan.FromSeconds(10));
+        await ClaimAsync(c, 10);
+        Assert.Equal("5", (await c.Db.StringGetAsync(c.Options.CapacityKey)).ToString());
+        Assert.InRange((long)await c.Db.ExecuteAsync("PTTL", c.Options.CapacityKey), 1, 10000);
+        await ClaimAsync(c, 5);
+        Assert.InRange((long)await c.Db.ExecuteAsync("PTTL", c.Options.CapacityKey), 30000, 32000);
+        await ClaimAsync(c, 3);
+        Assert.Equal("3", (await c.Db.StringGetAsync(c.Options.CapacityKey)).ToString());
+        Assert.InRange((long)await c.Db.ExecuteAsync("PTTL", c.Options.CapacityKey), 30000, 32000);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MissingRegistration_AllowsHigherCapacityToRegister(bool expire)
+    {
+        var c = new AdmissionTestContext(fixture);
+        await ClaimAsync(c, 5);
+        if (expire)
+        {
+            await c.Db.ExecuteAsync("PEXPIRE", c.Options.CapacityKey, 1);
+            await UuidRetentionTestSupport.WaitUntilMissingAsync(c.Db, c.Options.CapacityKey);
+        }
+        else await c.Db.KeyDeleteAsync(c.Options.CapacityKey);
+        await EnqueueUsersAsync(c);
+        for (int i = 0; i < 10; i++) Assert.Equal(AdmissionClaimStatus.Claimed, (await ClaimAsync(c, 10)).Status);
+        Assert.Equal("10", (await c.Db.StringGetAsync(c.Options.CapacityKey)).ToString());
+        Assert.Equal(AdmissionClaimStatus.CapacityFull, (await ClaimAsync(c, 10)).Status);
+    }
+
+    [Fact]
+    public async Task ExistingReservationRetry_DoesNotRejudgeOrRefreshCapacity()
+    {
+        var c = new AdmissionTestContext(fixture);
+        var claim = await c.ClaimAsync("first");
+        await c.ClaimAsync("second");
+        await c.Db.StringSetAsync(c.Options.CapacityKey, "1", TimeSpan.FromSeconds(10));
+        Assert.Equal(claim, (await c.Store.ClaimNextAsync(claim.AdmissionId, 10, c.Options.ProcessingLease)).Claim);
+        Assert.InRange((long)await c.Db.ExecuteAsync("PTTL", c.Options.CapacityKey), 1, 10000);
+        Assert.Equal(AdmissionClaimStatus.CapacityFull, (await ClaimAsync(c, 10)).Status);
+        Assert.Equal((0L, 2L, 0L), await c.CountsAsync());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("1.5")]
+    [InlineData("1e2")]
+    [InlineData("invalid")]
+    [InlineData("2147483648")]
+    public async Task MalformedRegistration_FailsBeforeAnyAdmissionWrite(string record)
+    {
+        var c = new AdmissionTestContext(fixture);
+        await c.Queue.EnqueueAsync("waiting");
+        await c.Db.StringSetAsync(c.Options.CapacityKey, record);
+        var id = AdmissionId.New();
+        var error = await Assert.ThrowsAsync<RedisServerException>(() => c.Store.ClaimNextAsync(id, 10, c.Options.ProcessingLease));
+        Assert.Contains("Invalid capacity record", error.Message);
+        Assert.Equal(record, (await c.Db.StringGetAsync(c.Options.CapacityKey)).ToString());
+        Assert.Equal((1L, 0L, 0L), await c.CountsAsync());
+        Assert.False(await c.Db.KeyExistsAsync(c.Options.AdmissionRecordsKey));
+        Assert.False(await c.Db.KeyExistsAsync(c.Options.ClaimAttemptKeyPrefix + id));
+    }
+
+    [Fact]
+    public async Task WrongRegistrationType_FailsBeforeAnyAdmissionWrite()
+    {
+        var c = new AdmissionTestContext(fixture);
+        await c.Queue.EnqueueAsync("waiting");
+        await c.Db.ListRightPushAsync(c.Options.CapacityKey, "invalid");
+        var error = await Assert.ThrowsAsync<RedisServerException>(() => ClaimAsync(c, 10));
+        Assert.Contains("Inconsistent claim key type", error.Message);
+        Assert.Equal("invalid", (await c.Db.ListGetByIndexAsync(c.Options.CapacityKey, 0)).ToString());
+        Assert.Equal((1L, 0L, 0L), await c.CountsAsync());
+        Assert.False(await c.Db.KeyExistsAsync(c.Options.AdmissionRecordsKey));
+    }
+
+    [Fact]
+    public async Task InvalidWaitingScore_ChangesOnlyTheCapacityRegistration()
+    {
+        var c = new AdmissionTestContext(fixture);
+        await c.Db.SortedSetAddAsync(c.Options.QueueKey, "waiting", 0);
+        var error = await Assert.ThrowsAsync<RedisServerException>(() => ClaimAsync(c, 5));
+        Assert.Contains("Invalid waiting sequence score", error.Message);
+        Assert.Equal("5", (await c.Db.StringGetAsync(c.Options.CapacityKey)).ToString());
+        Assert.Equal(0d, await c.Db.SortedSetScoreAsync(c.Options.QueueKey, "waiting"));
+        Assert.Equal((1L, 0L, 0L), await c.CountsAsync());
+        Assert.False(await c.Db.KeyExistsAsync(c.Options.AdmissionRecordsKey));
+    }
+
+    [Theory]
+    [InlineData("999")]
+    [InlineData("259200001")]
+    [InlineData("1000.5")]
+    [InlineData("invalid")]
+    public async Task InvalidRegistrationTtl_IsRejectedBeforeWriting(string ttl)
+    {
+        var c = new AdmissionTestContext(fixture);
+        await c.Queue.EnqueueAsync("waiting");
+        var id = AdmissionId.New();
+        var error = await Assert.ThrowsAsync<RedisServerException>(() => c.Db.ScriptEvaluateAsync(
+            RedisScriptSource.Load("ClaimNextUser.lua").Value,
+            new RedisKeys(c.Options).ForClaim(id),
+            [id.ToString(), 5, 30000, 300000, 60000, ttl]));
+        Assert.Contains("Invalid capacity record TTL", error.Message);
+        Assert.False(await c.Db.KeyExistsAsync(c.Options.CapacityKey));
+        Assert.Equal((1L, 0L, 0L), await c.CountsAsync());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("other:{other}:capacity")]
+    [InlineData("gatekeeper:{admission}:waiting")]
+    [InlineData("gatekeeper:{admission}:pass:overlap")]
+    public void InvalidCapacityKey_IsRejected(string key)
+    {
+        var options = new QueueOptions { CapacityKey = key };
+        Assert.False(QueueOptionsExtensions.HasValidRedisKeys(options));
+    }
+
+    [Fact]
+    public void RegistrationTtl_UsesTwoReleaseIntervalsAndOneLease()
+    {
+        var options = new QueueOptions();
+        Assert.Equal(150000, QueueOptionsExtensions.CapacityRecordTtlMilliseconds(options));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NegativeAttemptExpiry_DoesNotExpireTheLowerCapacityRegistration(bool waitForAttemptExpiry)
+    {
+        var c = new AdmissionTestContext(fixture, capacity: 2, configure: UuidRetentionTestSupport.ShortPolicy);
+        await c.ClaimAsync("held");
+        var id = AdmissionId.New();
+        Assert.Equal(AdmissionClaimStatus.CapacityFull, (await c.Store.ClaimNextAsync(id, 1, c.Options.ProcessingLease)).Status);
+        await c.Queue.EnqueueAsync("later");
+        if (waitForAttemptExpiry)
+            await UuidRetentionTestSupport.WaitUntilMissingAsync(c.Db, c.Options.ClaimAttemptKeyPrefix + id);
+        Assert.Equal("1", (await c.Db.StringGetAsync(c.Options.CapacityKey)).ToString());
+        Assert.Equal(AdmissionClaimStatus.CapacityFull, (await ClaimAsync(c, 2)).Status);
+        Assert.Equal((1L, 1L, 0L), await c.CountsAsync());
+    }
+
+    private static Task EnqueueUsersAsync(AdmissionTestContext c) =>
+        Task.WhenAll(Enumerable.Range(0, 50).Select(i => c.Queue.EnqueueAsync("waiting-" + i)));
+
+    private static Task<AdmissionClaimResult> ClaimAsync(AdmissionTestContext c, int capacity) =>
+        c.Store.ClaimNextAsync(AdmissionId.New(), capacity, c.Options.ProcessingLease);
 }

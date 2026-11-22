@@ -215,8 +215,8 @@ public sealed class RedisAdmissionClaimStore : IAdmissionClaimStore
             AdmissionMetricOperations.Claim,
             () => _database.ScriptEvaluateAsync(
                 ClaimScript.Value,
-                // KEYS[1..5]: Waiting, Processing, Records, Active, this attempt.
-                // ARGV[1..5]: ID, capacity, lease ms, acceptance ms, grace ms.
+                // KEYS[1..6]: Waiting, Processing, Records, Active, this attempt, capacity.
+                // ARGV[1..6]: ID, capacity, lease ms, acceptance ms, grace ms, capacity TTL ms.
                 // CLAIMED reply: status,user,ID,OriginalScore,lease expiry ms,Redis observation ms.
                 // Other replies are one capacity/empty/terminal-ID status; malformed state is an error.
                 keys: _keys.ForClaim(admissionId),
@@ -226,7 +226,8 @@ public sealed class RedisAdmissionClaimStore : IAdmissionClaimStore
                     maxActivePasses,
                     leaseMilliseconds,
                     AcceptanceWindowMilliseconds,
-                    AttemptGraceMilliseconds
+                    AttemptGraceMilliseconds,
+                    _options.CapacityRecordTtlMilliseconds()
                 ]));
 
         return ParseClaimResult(result, admissionId, _logger);

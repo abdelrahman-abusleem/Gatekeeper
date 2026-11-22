@@ -26,6 +26,10 @@ public class QueueOptions
     public string ActivePassesKey { get; init; }
         = "gatekeeper:{admission}:active";
 
+    /// <summary>Shared capacity record key; defaults to gatekeeper:{admission}:capacity and must share the queue hash tag.</summary>
+    public string CapacityKey { get; init; }
+        = "gatekeeper:{admission}:capacity";
+
     public string QueueSequenceKey { get; init; }
         = "gatekeeper:{admission}:sequence";
 

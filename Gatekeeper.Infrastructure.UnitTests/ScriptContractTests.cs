@@ -1,3 +1,4 @@
+using Gatekeeper.Infrastructure.Configuration;
 using Gatekeeper.Domain.ValueObjects;
 using Gatekeeper.Infrastructure.Services;
 using StackExchange.Redis;
@@ -15,8 +16,8 @@ public sealed class ScriptContractTests(RedisClaimFixture fixture) : IClassFixtu
         var before = await UuidRetentionTestSupport.NowAsync(c.Db);
         var reply = (RedisResult[])(await c.Db.ScriptEvaluateAsync(RedisScriptSource.Load("ClaimNextUser.lua").Value,
             [c.Options.QueueKey, c.Options.ProcessingQueueKey, c.Options.AdmissionRecordsKey,
-             c.Options.ActivePassesKey, c.Options.ClaimAttemptKeyPrefix + id],
-            [id.ToString(), 1, 30000, 300000, 60000]))!;
+             c.Options.ActivePassesKey, c.Options.ClaimAttemptKeyPrefix + id, c.Options.CapacityKey],
+            [id.ToString(), 1, 30000, 300000, 60000, c.Options.CapacityRecordTtlMilliseconds()]))!;
         Assert.Equal(6, reply.Length);
         Assert.Equal("CLAIMED", reply[0].ToString());
         Assert.Equal("contract-user", reply[1].ToString());

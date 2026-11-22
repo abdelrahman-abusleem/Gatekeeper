@@ -158,6 +158,11 @@ public sealed class Phase03RedisConfigurationTests(RedisClaimFixture fixture) : 
         var retry = await c.Store.ClaimNextAsync(id, 2, c.Options.ProcessingLease);
         Assert.Equal(first, retry);
         Assert.NotNull(await c.Db.SortedSetScoreAsync(c.Options.QueueKey, "next"));
+        if (capacityFull)
+        {
+            // The capacity record would otherwise persist until its TTL.
+            await c.ResetCapacityRegistrationAsync();
+        }
         Assert.NotNull((await c.Store.ClaimNextAsync(AdmissionId.New(), 2, c.Options.ProcessingLease)).Claim);
     }
 }

@@ -11,6 +11,7 @@ internal sealed class RedisKeys(QueueOptions options)
     internal RedisKey Records => options.AdmissionRecordsKey;
     internal RedisKey Active => options.ActivePassesKey;
     internal RedisKey Sequence => options.QueueSequenceKey;
+    internal RedisKey Capacity => options.CapacityKey;
     internal RedisKey PassOf(string userId) => options.PassKeyPrefix + userId;
     internal RedisKey ActiveIdentityOf(string userId) => options.ActiveAdmissionKeyPrefix + userId;
     internal RedisKey AttemptOf(AdmissionId id) => options.ClaimAttemptKeyPrefix + id;
@@ -19,8 +20,8 @@ internal sealed class RedisKeys(QueueOptions options)
     internal RedisKey[] ForSnapshot(string userId) =>
         [Waiting, Processing, Records, Active, PassOf(userId), ActiveIdentityOf(userId)];
 
-    // ClaimNextUser.lua KEYS[1..5]: Waiting, Processing, Records, Active, attempt.
-    internal RedisKey[] ForClaim(AdmissionId id) => [Waiting, Processing, Records, Active, AttemptOf(id)];
+    // ClaimNextUser.lua KEYS[1..6]: Waiting, Processing, Records, Active, attempt, capacity.
+    internal RedisKey[] ForClaim(AdmissionId id) => [Waiting, Processing, Records, Active, AttemptOf(id), Capacity];
 
     // CommitAdmission.lua KEYS[1..6]: Processing, Records, Active, token, attempt, identity.
     internal RedisKey[] ForCommit(string userId, AdmissionId id) =>

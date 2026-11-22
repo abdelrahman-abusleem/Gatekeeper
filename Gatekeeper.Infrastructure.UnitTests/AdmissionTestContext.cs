@@ -32,6 +32,7 @@ internal sealed class AdmissionTestContext
         var prefix = $"phase03:{{{Guid.NewGuid():N}}}";
         Options = new QueueOptions
         {
+            CapacityKey = prefix + ":capacity",
             QueueKey = prefix + ":waiting",
             ProcessingQueueKey = prefix + ":processing",
             AdmissionRecordsKey = prefix + ":records",
@@ -93,6 +94,8 @@ internal sealed class AdmissionTestContext
             [Options.ProcessingQueueKey, AttemptKey(claim)], [expired, claim.UserId, attempt.ToJsonString()]);
         return claim with { LeaseExpiresAtUtc = DateTimeOffset.FromUnixTimeMilliseconds(expired).UtcDateTime };
     }
+
+    internal Task ResetCapacityRegistrationAsync() => Db.KeyDeleteAsync(Options.CapacityKey);
 
     public async Task<(long Waiting, long Processing, long Active)> CountsAsync()
     {

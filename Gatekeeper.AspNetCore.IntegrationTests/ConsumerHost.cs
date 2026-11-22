@@ -61,6 +61,7 @@ internal sealed class ConsumerHost : IAsyncDisposable
             ["JwtSettings:SecretKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
             ["JwtSettings:Issuer"] = "consumer-tests",
             ["JwtSettings:Audience"] = "consumer-clients",
+            ["QueueSettings:CapacityKey"] = prefix + ":capacity",
             ["QueueSettings:QueueKey"] = prefix + ":waiting",
             ["QueueSettings:ProcessingQueueKey"] = prefix + ":processing",
             ["QueueSettings:AdmissionRecordsKey"] = prefix + ":records",

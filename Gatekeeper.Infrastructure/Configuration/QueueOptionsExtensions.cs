@@ -9,7 +9,7 @@ public static class QueueOptionsExtensions
     public static bool HasValidRedisKeys(this QueueOptions options)
     {
         string[] fixedKeys = [options.QueueKey, options.ProcessingQueueKey,
-            options.AdmissionRecordsKey, options.ActivePassesKey, options.QueueSequenceKey];
+            options.AdmissionRecordsKey, options.ActivePassesKey, options.QueueSequenceKey, options.CapacityKey];
         string[] prefixes = [options.ClaimAttemptKeyPrefix, options.PassKeyPrefix,
             options.ActiveAdmissionKeyPrefix];
         var keys = fixedKeys.Concat(prefixes).ToArray();
@@ -29,6 +29,10 @@ public static class QueueOptionsExtensions
             && !prefixes.Any(prefix => prefixes.Any(other => prefix != other
                 && prefix.StartsWith(other, StringComparison.Ordinal)));
     }
+
+    /// <summary>Capacity registrations survive two release intervals plus one processing lease, in milliseconds.</summary>
+    internal static long CapacityRecordTtlMilliseconds(this QueueOptions options) =>
+        (2L * options.ReleaseIntervalSeconds + options.ProcessingLeaseSeconds) * 1000;
 
     internal static void ValidateRedisKeys(this QueueOptions options)
     {

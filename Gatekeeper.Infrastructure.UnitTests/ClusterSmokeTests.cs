@@ -239,6 +239,7 @@ public sealed class ClusterSmokeTests(ITestOutputHelper output)
         var prefix = options.QueueKey + ":pressure";
         var limitedOptions = new Gatekeeper.Infrastructure.Configuration.QueueOptions
         {
+            CapacityKey = prefix + ":capacity",
             QueueKey = prefix + ":waiting",
             ProcessingQueueKey = prefix + ":processing",
             AdmissionRecordsKey = prefix + ":records",

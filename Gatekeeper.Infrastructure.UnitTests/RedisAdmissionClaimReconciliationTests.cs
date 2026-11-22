@@ -347,6 +347,7 @@ public sealed class RedisAdmissionClaimReconciliationTests
         {
             PassKeyPrefix = $"{prefix}:pass:",
             ActiveAdmissionKeyPrefix = $"{prefix}:active_id:",
+            CapacityKey = $"{prefix}:capacity",
             QueueKey = $"{prefix}:waiting",
             ProcessingQueueKey = $"{prefix}:processing",
             AdmissionRecordsKey = $"{prefix}:records",

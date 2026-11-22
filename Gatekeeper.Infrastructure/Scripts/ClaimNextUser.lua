@@ -4,6 +4,7 @@
 --   KEYS[3] = Admission Records HASH: user -> reservation JSON.
 --   KEYS[4] = Active Passes ZSET: user -> pass expiry (Unix milliseconds).
 --   KEYS[5] = Claim Attempt STRING: JSON for the requested AdmissionId.
+--   KEYS[6] = Capacity STRING: lowest registered positive integer capacity.
 --
 -- ARGV (required unless marked optional or mode-specific)
 -- ARGV[1] = AdmissionId: canonical lowercase GUID D string; UUIDv7 only; recorded retries precede the acceptance-window check.
@@ -11,6 +12,7 @@
 -- ARGV[3] = Processing lease: whole milliseconds, 1..3600000.
 -- ARGV[4] = Claim ID acceptance window: whole milliseconds, 1000..3600000.
 -- ARGV[5] = Shared future-skew/retention grace: whole milliseconds, 1000..300000.
+-- ARGV[6] = Capacity record TTL: whole milliseconds, 1000..259200000.
 --
 -- RETURNS
 -- {'CLAIMED', user, AdmissionId, OriginalScore, leaseExpiryUnixMs, redisNowUnixMs};
@@ -40,12 +42,16 @@ local maxCapacity = tonumber(ARGV[2])
 local leaseMs = tonumber(ARGV[3])
 local window = tonumber(ARGV[4])
 local grace = tonumber(ARGV[5])
+local capacityTtl = tonumber(ARGV[6])
+if not capacityTtl or capacityTtl < 1000 or capacityTtl > 259200000 or capacityTtl % 1 ~= 0 then
+    return redis.error_reply('Invalid capacity record TTL')
+end
 if not window or window < 1000 or window > 3600000 or window % 1 ~= 0
     or not grace or grace < 1000 or grace > 300000 or grace % 1 ~= 0 then
     return redis.error_reply('Invalid attempt acceptance/grace settings')
 end
 
-local types = { 'zset', 'zset', 'hash', 'zset', 'string' }
+local types = { 'zset', 'zset', 'hash', 'zset', 'string', 'string' }
 for i, expected in ipairs(types) do
     local actual = redis.call('TYPE', KEYS[i]).ok
     if actual ~= 'none' and actual ~= expected then
@@ -165,6 +171,19 @@ end
 local created = uuidTime(admissionId)
 if nowMs >= created + window then return { 'ID_EXPIRED' } end
 if created > nowMs + grace then return { 'ID_TOO_FUTURE' } end
+
+local stored = redis.call('GET', KEYS[6])
+local storedCapacity = stored and tonumber(stored)
+if stored and (not string.match(stored, '^%d+$') or not storedCapacity
+    or storedCapacity < 1 or storedCapacity > 2147483647) then
+    return redis.error_reply('Invalid capacity record')
+end
+local requestedCapacity = maxCapacity
+if storedCapacity then maxCapacity = math.min(maxCapacity, storedCapacity) end
+-- A lower registration takes effect immediately; higher callers cannot keep it alive.
+if not storedCapacity or requestedCapacity <= storedCapacity then
+    redis.call('SET', KEYS[6], requestedCapacity, 'PX', capacityTtl)
+end
 
 redis.call(
     'ZREMRANGEBYSCORE',

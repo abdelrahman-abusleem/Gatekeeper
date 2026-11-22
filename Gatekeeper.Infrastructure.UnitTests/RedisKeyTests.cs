@@ -18,7 +18,7 @@ public sealed class RedisKeyTests(RedisClaimFixture fixture) : IClassFixture<Red
         Assert.Equal(identity, keys.ActiveIdentityOf(user).ToString());
         Assert.Equal(attempt, keys.AttemptOf(id).ToString());
         AssertKeys([o.QueueKey, o.ProcessingQueueKey, o.AdmissionRecordsKey, o.ActivePassesKey, pass, identity], keys.ForSnapshot(user));
-        AssertKeys([o.QueueKey, o.ProcessingQueueKey, o.AdmissionRecordsKey, o.ActivePassesKey, attempt], keys.ForClaim(id));
+        AssertKeys([o.QueueKey, o.ProcessingQueueKey, o.AdmissionRecordsKey, o.ActivePassesKey, attempt, o.CapacityKey], keys.ForClaim(id));
         AssertKeys([o.ProcessingQueueKey, o.AdmissionRecordsKey, o.ActivePassesKey, pass, attempt, identity], keys.ForCommit(user, id));
         AssertKeys([attempt, o.ActivePassesKey, identity, pass, o.ProcessingQueueKey, o.AdmissionRecordsKey], keys.ForCommitStatus(user, id));
         AssertKeys([o.QueueKey, o.ProcessingQueueKey, o.AdmissionRecordsKey, o.ActivePassesKey, pass, identity, attempt], keys.ForRelease(user, id));

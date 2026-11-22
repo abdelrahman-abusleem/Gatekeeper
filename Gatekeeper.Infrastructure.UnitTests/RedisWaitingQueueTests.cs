@@ -412,6 +412,7 @@ public sealed class RedisWaitingQueueTests
             ClaimAttemptKeyPrefix = $"{prefix}:claim_attempt:",
             PassKeyPrefix = $"{prefix}:pass:",
             ActiveAdmissionKeyPrefix = $"{prefix}:active_id:",
+            CapacityKey = $"{prefix}:capacity",
             QueueKey = $"{prefix}:waiting",
             ProcessingQueueKey = $"{prefix}:processing",
             AdmissionRecordsKey = $"{prefix}:records",

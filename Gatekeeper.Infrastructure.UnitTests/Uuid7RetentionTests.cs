@@ -76,7 +76,7 @@ public sealed class Uuid7ClaimTests(RedisClaimFixture fixture) : IClassFixture<R
                 FormattableString.Invariant($"local time = {{{nowMs / 1000}, {(nowMs % 1000) * 1000}}}"),
                 StringComparison.Ordinal);
             var parts = (RedisResult[])(await c.Db.ScriptEvaluateAsync(script, keys,
-                [id.ToString(), c.Options.MaxActivePasses, leaseMs, windowMs, graceMs]))!;
+                [id.ToString(), c.Options.MaxActivePasses, leaseMs, windowMs, graceMs, c.Options.CapacityRecordTtlMilliseconds()]))!;
 
             if (nowMs == timestamp + windowMs)
             {
@@ -114,11 +114,11 @@ public sealed class Uuid7ClaimTests(RedisClaimFixture fixture) : IClassFixture<R
         var id = UuidRetentionTestSupport.At(now + offset);
         // Pin a Redis TIME snapshot in TEST-LOADED source only. Production has no clock override.
         var source = UuidRetentionTestSupport.ClaimScript.Replace("local time = redis.call('TIME')",
-            "local time = {math.floor(tonumber(ARGV[6])/1000), (tonumber(ARGV[6]) % 1000)*1000}");
+            "local time = {math.floor(tonumber(ARGV[7])/1000), (tonumber(ARGV[7]) % 1000)*1000}");
         var attemptKey = c.Options.ClaimAttemptKeyPrefix + id;
         var result = (RedisResult[])(await c.Db.ScriptEvaluateAsync(source,
-            [c.Options.QueueKey, c.Options.ProcessingQueueKey, c.Options.AdmissionRecordsKey, c.Options.ActivePassesKey, attemptKey],
-            [id.ToString(), 10, 30000, 300000, 60000, now]))!;
+            [c.Options.QueueKey, c.Options.ProcessingQueueKey, c.Options.AdmissionRecordsKey, c.Options.ActivePassesKey, attemptKey, c.Options.CapacityKey],
+            [id.ToString(), 10, 30000, 300000, 60000, c.Options.CapacityRecordTtlMilliseconds(), now]))!;
         Assert.Equal(expected, result[0].ToString());
         if (expected != "CLAIMED")
         {
@@ -141,7 +141,7 @@ public sealed class Uuid7ClaimTests(RedisClaimFixture fixture) : IClassFixture<R
         await c.Queue.EnqueueAsync("user");
         var result = (RedisResult[])(await c.Db.ScriptEvaluateAsync(UuidRetentionTestSupport.ClaimScript,
             [c.Options.QueueKey, c.Options.ProcessingQueueKey, c.Options.AdmissionRecordsKey, c.Options.ActivePassesKey,
-                c.Options.ClaimAttemptKeyPrefix + "invalid"], [id, 1, 30000, 300000, 60000]))!;
+                c.Options.ClaimAttemptKeyPrefix + "invalid", c.Options.CapacityKey], [id, 1, 30000, 300000, 60000, c.Options.CapacityRecordTtlMilliseconds()]))!;
         Assert.StartsWith("ID_", result[0].ToString());
         Assert.Equal((1L, 0L, 0L), await c.CountsAsync());
     }
@@ -190,6 +190,11 @@ public sealed class BoundedAttemptLifecycleTests(RedisClaimFixture fixture) : IC
         await Assert.ThrowsAsync<AdmissionClaimUnavailableException>(() => c.Store.ClaimNextAsync(id, 2, c.Options.ProcessingLease));
         Assert.False(await c.Db.KeyExistsAsync(key));
         var fresh = UuidRetentionTestSupport.At(await UuidRetentionTestSupport.NowAsync(c.Db));
+        if (full)
+        {
+            // The capacity record would otherwise persist until its TTL.
+            await c.ResetCapacityRegistrationAsync();
+        }
         Assert.Equal("later", (await c.Store.ClaimNextAsync(fresh, 2, c.Options.ProcessingLease)).Claim!.UserId);
     }
 

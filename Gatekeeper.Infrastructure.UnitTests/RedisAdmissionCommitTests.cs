@@ -519,6 +519,7 @@ public sealed class RedisAdmissionCommitTests
 
         var queueOptions = new QueueOptions
         {
+            CapacityKey = $"{prefix}:capacity",
             QueueKey = $"{prefix}:waiting",
             ProcessingQueueKey = $"{prefix}:processing",
             AdmissionRecordsKey = $"{prefix}:records",
