@@ -1,7 +1,7 @@
 namespace Gatekeeper.Domain.Exceptions;
-
-/// <summary>The user already has a live Active admission; no new Waiting entry was created.</summary>
+/// <summary>A live Active admission prevented a new Waiting entry.</summary>
 public sealed class AdmissionAlreadyActiveException : InvalidOperationException
 {
+    /// <summary>Initialize the exception with the standard rejection message.</summary>
     public AdmissionAlreadyActiveException() : base("User already has an active admission pass.") { }
 }

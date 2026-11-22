@@ -10,13 +10,29 @@ using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+/// <summary>Registration of Gatekeeper options, Redis services and the optional Worker.</summary>
 public static class DependencyInjection
 {
+    /// <summary>Register Gatekeeper with configuration binding and a Worker.</summary>
+    /// <param name="services">The host service collection.</param>
+    /// <param name="configuration">Configuration containing QueueSettings, JwtSettings and ConnectionStrings:Redis, unless a host multiplexer is already registered.</param>
+    /// <returns>The same service collection.</returns>
+    /// <exception cref="ArgumentNullException">The services or a required configuration/callback argument is null.</exception>
+    /// <exception cref="InvalidOperationException">ConnectionStrings:Redis is missing or blank and no host IConnectionMultiplexer was registered first.</exception>
+    /// <remarks>Options validation runs at host startup (or options resolution) and throws OptionsValidationException for invalid keys, timing, capacity or JWT settings. Redis connects on multiplexer resolution; parse/connection errors propagate then, not during registration. Callback/binding failures propagate when options are evaluated.</remarks>
     public static IServiceCollection AddGatekeeper(
         this IServiceCollection services,
         IConfiguration configuration)
         => services.AddGatekeeper(configuration, addWorker: true);
 
+    /// <summary>Register Gatekeeper with configuration binding and an optional Worker.</summary>
+    /// <param name="services">The host service collection.</param>
+    /// <param name="configuration">Configuration containing QueueSettings, JwtSettings and ConnectionStrings:Redis, unless a host multiplexer is already registered.</param>
+    /// <param name="addWorker">Whether to register the background Worker.</param>
+    /// <returns>The same service collection.</returns>
+    /// <exception cref="ArgumentNullException">The services or a required configuration/callback argument is null.</exception>
+    /// <exception cref="InvalidOperationException">ConnectionStrings:Redis is missing or blank and no host IConnectionMultiplexer was registered first.</exception>
+    /// <remarks>Options validation runs at host startup (or options resolution) and throws OptionsValidationException for invalid keys, timing, capacity or JWT settings. Redis connects on multiplexer resolution; parse/connection errors propagate then, not during registration. Callback/binding failures propagate when options are evaluated.</remarks>
     public static IServiceCollection AddGatekeeper(
         this IServiceCollection services,
         IConfiguration configuration,
@@ -33,6 +49,16 @@ public static class DependencyInjection
             options => options.Bind(configuration.GetSection(JwtOptions.SectionName)), addWorker);
     }
 
+    /// <summary>Register Gatekeeper with code callbacks and an optional Worker.</summary>
+    /// <param name="services">The host service collection.</param>
+    /// <param name="redisConnectionString">Explicit nonblank Redis connection string; host multiplexer registrations are preserved.</param>
+    /// <param name="configureQueue">Configure queue values directly or bind any custom configuration section.</param>
+    /// <param name="configureJwt">Configure issuer, audience and signing/validation keys directly or bind any custom section.</param>
+    /// <param name="addWorker">Whether to register the background Worker; defaults to true.</param>
+    /// <returns>The same service collection.</returns>
+    /// <exception cref="ArgumentNullException">The services or a required configuration/callback argument is null.</exception>
+    /// <exception cref="ArgumentException">The explicit Redis connection string is null, empty or whitespace.</exception>
+    /// <remarks>Options validation runs at host startup (or options resolution) and throws OptionsValidationException for invalid keys, timing, capacity or JWT settings. Redis connects on multiplexer resolution; parse/connection errors propagate then, not during registration. Callback/binding failures propagate when options are evaluated.</remarks>
     public static IServiceCollection AddGatekeeper(
         this IServiceCollection services,
         string redisConnectionString,

@@ -1,7 +1,7 @@
 namespace Gatekeeper.Domain.Exceptions;
-
-/// <summary>The user already holds a Processing reservation; no new Waiting entry was created.</summary>
+/// <summary>A Processing reservation prevented a new Waiting entry.</summary>
 public sealed class AdmissionAlreadyProcessingException : InvalidOperationException
 {
+    /// <summary>Initialize the exception with the standard rejection message.</summary>
     public AdmissionAlreadyProcessingException() : base("User already has a Processing reservation.") { }
 }
