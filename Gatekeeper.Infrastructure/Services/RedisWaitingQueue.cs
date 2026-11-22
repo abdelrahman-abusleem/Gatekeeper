@@ -10,7 +10,7 @@ using StackExchange.Redis;
 
 namespace Gatekeeper.Infrastructure.Services;
 
-public sealed class RedisWaitingQueue : IWaitingQueue
+internal sealed class RedisWaitingQueue : IWaitingQueue
 {
     private static readonly Lazy<string> EnqueueScript = RedisScriptSource.Load("EnqueueUser.lua");
 

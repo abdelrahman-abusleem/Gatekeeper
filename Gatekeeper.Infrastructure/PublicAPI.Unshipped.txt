@@ -1,0 +1,62 @@
+#nullable enable
+Gatekeeper.Infrastructure.Configuration.JwtOptions
+Gatekeeper.Infrastructure.Configuration.JwtOptions.AdditionalSecretKeys.get -> string![]!
+Gatekeeper.Infrastructure.Configuration.JwtOptions.AdditionalSecretKeys.set -> void
+Gatekeeper.Infrastructure.Configuration.JwtOptions.Audience.get -> string!
+Gatekeeper.Infrastructure.Configuration.JwtOptions.Audience.set -> void
+Gatekeeper.Infrastructure.Configuration.JwtOptions.Issuer.get -> string!
+Gatekeeper.Infrastructure.Configuration.JwtOptions.Issuer.set -> void
+Gatekeeper.Infrastructure.Configuration.JwtOptions.JwtOptions() -> void
+Gatekeeper.Infrastructure.Configuration.JwtOptions.SecretKey.get -> string!
+Gatekeeper.Infrastructure.Configuration.JwtOptions.SecretKey.set -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ActiveAdmissionKeyPrefix.get -> string!
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ActiveAdmissionKeyPrefix.init -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ActivePassesKey.get -> string!
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ActivePassesKey.init -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.AdmissionRecordsKey.get -> string!
+Gatekeeper.Infrastructure.Configuration.QueueOptions.AdmissionRecordsKey.init -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.BatchSize.get -> int
+Gatekeeper.Infrastructure.Configuration.QueueOptions.BatchSize.set -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.CapacityKey.get -> string!
+Gatekeeper.Infrastructure.Configuration.QueueOptions.CapacityKey.init -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ClaimAttemptGraceSeconds.get -> int
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ClaimAttemptGraceSeconds.set -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ClaimAttemptKeyPrefix.get -> string!
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ClaimAttemptKeyPrefix.init -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ClaimIdAcceptanceWindowSeconds.get -> int
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ClaimIdAcceptanceWindowSeconds.set -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.MaxActivePasses.get -> int
+Gatekeeper.Infrastructure.Configuration.QueueOptions.MaxActivePasses.set -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.MaxConcurrentAdmissions.get -> int
+Gatekeeper.Infrastructure.Configuration.QueueOptions.MaxConcurrentAdmissions.set -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.MaxWaitingUsers.get -> int
+Gatekeeper.Infrastructure.Configuration.QueueOptions.MaxWaitingUsers.set -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.NotifyChannelPrefix.get -> string!
+Gatekeeper.Infrastructure.Configuration.QueueOptions.NotifyChannelPrefix.init -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.PassDuration.get -> System.TimeSpan
+Gatekeeper.Infrastructure.Configuration.QueueOptions.PassDurationMinutes.get -> int
+Gatekeeper.Infrastructure.Configuration.QueueOptions.PassDurationMinutes.set -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.PassKeyPrefix.get -> string!
+Gatekeeper.Infrastructure.Configuration.QueueOptions.PassKeyPrefix.init -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ProcessingLease.get -> System.TimeSpan
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ProcessingLeaseSeconds.get -> int
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ProcessingLeaseSeconds.set -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ProcessingQueueKey.get -> string!
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ProcessingQueueKey.init -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.QueueKey.get -> string!
+Gatekeeper.Infrastructure.Configuration.QueueOptions.QueueKey.set -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.QueueOptions() -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.QueueSequenceKey.get -> string!
+Gatekeeper.Infrastructure.Configuration.QueueOptions.QueueSequenceKey.init -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ReleaseInterval.get -> System.TimeSpan
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ReleaseIntervalSeconds.get -> int
+Gatekeeper.Infrastructure.Configuration.QueueOptions.ReleaseIntervalSeconds.set -> void
+Gatekeeper.Infrastructure.Configuration.QueueOptions.WorkerRetryMaxDelaySeconds.get -> int
+Gatekeeper.Infrastructure.Configuration.QueueOptions.WorkerRetryMaxDelaySeconds.set -> void
+Microsoft.Extensions.DependencyInjection.DependencyInjection
+const Gatekeeper.Infrastructure.Configuration.JwtOptions.SectionName = "JwtSettings" -> string!
+const Gatekeeper.Infrastructure.Configuration.QueueOptions.SectionName = "QueueSettings" -> string!
+static Microsoft.Extensions.DependencyInjection.DependencyInjection.AddGatekeeper(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DependencyInjection.AddGatekeeper(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, bool addWorker) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DependencyInjection.AddGatekeeper(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! redisConnectionString, System.Action<Gatekeeper.Infrastructure.Configuration.QueueOptions!>! configureQueue, System.Action<Gatekeeper.Infrastructure.Configuration.JwtOptions!>! configureJwt, bool addWorker = true) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

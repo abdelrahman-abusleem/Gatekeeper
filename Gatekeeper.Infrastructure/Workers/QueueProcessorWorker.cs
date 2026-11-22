@@ -13,7 +13,7 @@ using StackExchange.Redis;
 
 namespace Gatekeeper.Infrastructure.Workers;
 
-public sealed class QueueProcessorWorker : BackgroundService
+internal sealed class QueueProcessorWorker : BackgroundService
 {
     private static readonly TimeSpan ShutdownDrainTimeout = TimeSpan.FromSeconds(30);
     private readonly IAdmissionClaimStore _store;

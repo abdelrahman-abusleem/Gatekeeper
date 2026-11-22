@@ -1,0 +1,160 @@
+#nullable enable
+Gatekeeper.Domain.Abstractions.IAdmissionClaimStore
+Gatekeeper.Domain.Abstractions.IAdmissionClaimStore.ClaimNextAsync(Gatekeeper.Domain.ValueObjects.AdmissionId admissionId, int maxActivePasses, System.TimeSpan processingLease, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Gatekeeper.Domain.Models.AdmissionClaimResult!>!
+Gatekeeper.Domain.Abstractions.IAdmissionClaimStore.CommitAsync(Gatekeeper.Domain.Models.AdmissionClaim! claim, string! signedToken, System.DateTime expiresAtUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Gatekeeper.Domain.Abstractions.IAdmissionClaimStore.GetCommitStatusAsync(Gatekeeper.Domain.Models.AdmissionClaim! claim, string! signedToken, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Gatekeeper.Domain.Enums.AdmissionCommitStatus>!
+Gatekeeper.Domain.Abstractions.IAdmissionNotifier
+Gatekeeper.Domain.Abstractions.IAdmissionNotifier.NotifyReadyAsync(string! userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Gatekeeper.Domain.Abstractions.IAdmissionReader
+Gatekeeper.Domain.Abstractions.IAdmissionReader.GetPassAsync(string! userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string?>!
+Gatekeeper.Domain.Abstractions.IAdmissionReader.GetStatusAsync(string! userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Gatekeeper.Domain.Enums.AdmissionStatus>!
+Gatekeeper.Domain.Abstractions.IAdmissionRecovery
+Gatekeeper.Domain.Abstractions.IAdmissionRecovery.RecoverAsync(Gatekeeper.Domain.Models.AdmissionClaim! claim, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Gatekeeper.Domain.Enums.AdmissionRecoveryStatus>!
+Gatekeeper.Domain.Abstractions.IAdmissionRecovery.RecoverExpiredAsync(int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Gatekeeper.Domain.Models.AdmissionRecoveryResult!>!>!
+Gatekeeper.Domain.Abstractions.IAdmissionReleaser
+Gatekeeper.Domain.Abstractions.IAdmissionReleaser.ReleaseAsync(string! userId, Gatekeeper.Domain.ValueObjects.AdmissionId expectedAdmissionId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Gatekeeper.Domain.Enums.AdmissionReleaseStatus>!
+Gatekeeper.Domain.Abstractions.IAdmissionTokenService
+Gatekeeper.Domain.Abstractions.IAdmissionTokenService.GenerateToken(Gatekeeper.Domain.Models.AdmissionTokenData! data) -> string!
+Gatekeeper.Domain.Abstractions.IAdmissionTokenService.ValidateTokenAsync(string! token, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Gatekeeper.Domain.Models.AdmissionTokenData?>!
+Gatekeeper.Domain.Abstractions.IAdmissionValidator
+Gatekeeper.Domain.Abstractions.IAdmissionValidator.ValidateAdmissionAsync(string! signedToken, string! expectedUserId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Gatekeeper.Domain.Enums.AdmissionValidationStatus>!
+Gatekeeper.Domain.Abstractions.IWaitingQueue
+Gatekeeper.Domain.Abstractions.IWaitingQueue.EnqueueAsync(string! userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Gatekeeper.Domain.Models.QueuePosition!>!
+Gatekeeper.Domain.Abstractions.IWaitingQueue.GetPositionAsync(string! userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Gatekeeper.Domain.Models.QueuePosition?>!
+Gatekeeper.Domain.Abstractions.IWaitingQueue.GetQueueLengthAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<long>!
+Gatekeeper.Domain.Abstractions.IWaitingQueue.RemoveAsync(string! userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
+Gatekeeper.Domain.Enums.AdmissionClaimStatus
+Gatekeeper.Domain.Enums.AdmissionClaimStatus.CapacityFull = 1 -> Gatekeeper.Domain.Enums.AdmissionClaimStatus
+Gatekeeper.Domain.Enums.AdmissionClaimStatus.Claimed = 0 -> Gatekeeper.Domain.Enums.AdmissionClaimStatus
+Gatekeeper.Domain.Enums.AdmissionClaimStatus.QueueEmpty = 2 -> Gatekeeper.Domain.Enums.AdmissionClaimStatus
+Gatekeeper.Domain.Enums.AdmissionCommitStatus
+Gatekeeper.Domain.Enums.AdmissionCommitStatus.Committed = 0 -> Gatekeeper.Domain.Enums.AdmissionCommitStatus
+Gatekeeper.Domain.Enums.AdmissionCommitStatus.Expired = 5 -> Gatekeeper.Domain.Enums.AdmissionCommitStatus
+Gatekeeper.Domain.Enums.AdmissionCommitStatus.Inconsistent = 4 -> Gatekeeper.Domain.Enums.AdmissionCommitStatus
+Gatekeeper.Domain.Enums.AdmissionCommitStatus.Mismatch = 3 -> Gatekeeper.Domain.Enums.AdmissionCommitStatus
+Gatekeeper.Domain.Enums.AdmissionCommitStatus.NotCommitted = 1 -> Gatekeeper.Domain.Enums.AdmissionCommitStatus
+Gatekeeper.Domain.Enums.AdmissionCommitStatus.Unknown = 2 -> Gatekeeper.Domain.Enums.AdmissionCommitStatus
+Gatekeeper.Domain.Enums.AdmissionRecoveryStatus
+Gatekeeper.Domain.Enums.AdmissionRecoveryStatus.AlreadyResolved = 2 -> Gatekeeper.Domain.Enums.AdmissionRecoveryStatus
+Gatekeeper.Domain.Enums.AdmissionRecoveryStatus.Inconsistent = 3 -> Gatekeeper.Domain.Enums.AdmissionRecoveryStatus
+Gatekeeper.Domain.Enums.AdmissionRecoveryStatus.NotExpired = 1 -> Gatekeeper.Domain.Enums.AdmissionRecoveryStatus
+Gatekeeper.Domain.Enums.AdmissionRecoveryStatus.Recovered = 0 -> Gatekeeper.Domain.Enums.AdmissionRecoveryStatus
+Gatekeeper.Domain.Enums.AdmissionReleaseStatus
+Gatekeeper.Domain.Enums.AdmissionReleaseStatus.Inconsistent = 2 -> Gatekeeper.Domain.Enums.AdmissionReleaseStatus
+Gatekeeper.Domain.Enums.AdmissionReleaseStatus.NotCurrent = 0 -> Gatekeeper.Domain.Enums.AdmissionReleaseStatus
+Gatekeeper.Domain.Enums.AdmissionReleaseStatus.Released = 1 -> Gatekeeper.Domain.Enums.AdmissionReleaseStatus
+Gatekeeper.Domain.Enums.AdmissionStatus
+Gatekeeper.Domain.Enums.AdmissionStatus.Active = 3 -> Gatekeeper.Domain.Enums.AdmissionStatus
+Gatekeeper.Domain.Enums.AdmissionStatus.Inconsistent = 4 -> Gatekeeper.Domain.Enums.AdmissionStatus
+Gatekeeper.Domain.Enums.AdmissionStatus.NotFound = 0 -> Gatekeeper.Domain.Enums.AdmissionStatus
+Gatekeeper.Domain.Enums.AdmissionStatus.Processing = 2 -> Gatekeeper.Domain.Enums.AdmissionStatus
+Gatekeeper.Domain.Enums.AdmissionStatus.Waiting = 1 -> Gatekeeper.Domain.Enums.AdmissionStatus
+Gatekeeper.Domain.Enums.AdmissionValidationStatus
+Gatekeeper.Domain.Enums.AdmissionValidationStatus.Inactive = 2 -> Gatekeeper.Domain.Enums.AdmissionValidationStatus
+Gatekeeper.Domain.Enums.AdmissionValidationStatus.Inconsistent = 3 -> Gatekeeper.Domain.Enums.AdmissionValidationStatus
+Gatekeeper.Domain.Enums.AdmissionValidationStatus.InvalidToken = 0 -> Gatekeeper.Domain.Enums.AdmissionValidationStatus
+Gatekeeper.Domain.Enums.AdmissionValidationStatus.SubjectMismatch = 1 -> Gatekeeper.Domain.Enums.AdmissionValidationStatus
+Gatekeeper.Domain.Enums.AdmissionValidationStatus.Valid = 4 -> Gatekeeper.Domain.Enums.AdmissionValidationStatus
+Gatekeeper.Domain.Exceptions.AdmissionAlreadyActiveException
+Gatekeeper.Domain.Exceptions.AdmissionAlreadyActiveException.AdmissionAlreadyActiveException() -> void
+Gatekeeper.Domain.Exceptions.AdmissionAlreadyProcessingException
+Gatekeeper.Domain.Exceptions.AdmissionAlreadyProcessingException.AdmissionAlreadyProcessingException() -> void
+Gatekeeper.Domain.Exceptions.AdmissionClaimUnavailableException
+Gatekeeper.Domain.Exceptions.AdmissionClaimUnavailableException.AdmissionClaimUnavailableException(string! message) -> void
+Gatekeeper.Domain.Exceptions.AdmissionClaimUnavailableException.RequiresBackoff.get -> bool
+Gatekeeper.Domain.Exceptions.AdmissionClaimUnavailableException.RequiresBackoff.init -> void
+Gatekeeper.Domain.Exceptions.AdmissionCommitRejectedException
+Gatekeeper.Domain.Exceptions.AdmissionCommitRejectedException.AdmissionCommitRejectedException(string! message) -> void
+Gatekeeper.Domain.Exceptions.AdmissionRecordConflictException
+Gatekeeper.Domain.Exceptions.AdmissionRecordConflictException.AdmissionRecordConflictException() -> void
+Gatekeeper.Domain.Exceptions.WaitingQueueFullException
+Gatekeeper.Domain.Exceptions.WaitingQueueFullException.WaitingQueueFullException() -> void
+Gatekeeper.Domain.Models.AdmissionClaim
+Gatekeeper.Domain.Models.AdmissionClaim.<Clone>$() -> Gatekeeper.Domain.Models.AdmissionClaim!
+Gatekeeper.Domain.Models.AdmissionClaim.AdmissionClaim(Gatekeeper.Domain.ValueObjects.AdmissionId AdmissionId, string! UserId, long OriginalScore, System.DateTime LeaseExpiresAtUtc) -> void
+Gatekeeper.Domain.Models.AdmissionClaim.AdmissionId.get -> Gatekeeper.Domain.ValueObjects.AdmissionId
+Gatekeeper.Domain.Models.AdmissionClaim.AdmissionId.init -> void
+Gatekeeper.Domain.Models.AdmissionClaim.Deconstruct(out Gatekeeper.Domain.ValueObjects.AdmissionId AdmissionId, out string! UserId, out long OriginalScore, out System.DateTime LeaseExpiresAtUtc) -> void
+Gatekeeper.Domain.Models.AdmissionClaim.Equals(Gatekeeper.Domain.Models.AdmissionClaim? other) -> bool
+Gatekeeper.Domain.Models.AdmissionClaim.LeaseExpiresAtUtc.get -> System.DateTime
+Gatekeeper.Domain.Models.AdmissionClaim.LeaseExpiresAtUtc.init -> void
+Gatekeeper.Domain.Models.AdmissionClaim.OriginalScore.get -> long
+Gatekeeper.Domain.Models.AdmissionClaim.OriginalScore.init -> void
+Gatekeeper.Domain.Models.AdmissionClaim.UserId.get -> string!
+Gatekeeper.Domain.Models.AdmissionClaim.UserId.init -> void
+Gatekeeper.Domain.Models.AdmissionClaimResult
+Gatekeeper.Domain.Models.AdmissionClaimResult.<Clone>$() -> Gatekeeper.Domain.Models.AdmissionClaimResult!
+Gatekeeper.Domain.Models.AdmissionClaimResult.AdmissionClaimResult(Gatekeeper.Domain.Enums.AdmissionClaimStatus Status, Gatekeeper.Domain.Models.AdmissionClaim? Claim) -> void
+Gatekeeper.Domain.Models.AdmissionClaimResult.Claim.get -> Gatekeeper.Domain.Models.AdmissionClaim?
+Gatekeeper.Domain.Models.AdmissionClaimResult.Claim.init -> void
+Gatekeeper.Domain.Models.AdmissionClaimResult.Deconstruct(out Gatekeeper.Domain.Enums.AdmissionClaimStatus Status, out Gatekeeper.Domain.Models.AdmissionClaim? Claim) -> void
+Gatekeeper.Domain.Models.AdmissionClaimResult.Equals(Gatekeeper.Domain.Models.AdmissionClaimResult? other) -> bool
+Gatekeeper.Domain.Models.AdmissionClaimResult.ServerTimeUtc.get -> System.DateTime?
+Gatekeeper.Domain.Models.AdmissionClaimResult.ServerTimeUtc.init -> void
+Gatekeeper.Domain.Models.AdmissionClaimResult.Status.get -> Gatekeeper.Domain.Enums.AdmissionClaimStatus
+Gatekeeper.Domain.Models.AdmissionClaimResult.Status.init -> void
+Gatekeeper.Domain.Models.AdmissionRecoveryResult
+Gatekeeper.Domain.Models.AdmissionRecoveryResult.<Clone>$() -> Gatekeeper.Domain.Models.AdmissionRecoveryResult!
+Gatekeeper.Domain.Models.AdmissionRecoveryResult.AdmissionRecoveryResult(string! UserId, Gatekeeper.Domain.Enums.AdmissionRecoveryStatus Status) -> void
+Gatekeeper.Domain.Models.AdmissionRecoveryResult.Deconstruct(out string! UserId, out Gatekeeper.Domain.Enums.AdmissionRecoveryStatus Status) -> void
+Gatekeeper.Domain.Models.AdmissionRecoveryResult.Equals(Gatekeeper.Domain.Models.AdmissionRecoveryResult? other) -> bool
+Gatekeeper.Domain.Models.AdmissionRecoveryResult.Status.get -> Gatekeeper.Domain.Enums.AdmissionRecoveryStatus
+Gatekeeper.Domain.Models.AdmissionRecoveryResult.Status.init -> void
+Gatekeeper.Domain.Models.AdmissionRecoveryResult.UserId.get -> string!
+Gatekeeper.Domain.Models.AdmissionRecoveryResult.UserId.init -> void
+Gatekeeper.Domain.Models.AdmissionTokenData
+Gatekeeper.Domain.Models.AdmissionTokenData.<Clone>$() -> Gatekeeper.Domain.Models.AdmissionTokenData!
+Gatekeeper.Domain.Models.AdmissionTokenData.AdmissionId.get -> Gatekeeper.Domain.ValueObjects.AdmissionId
+Gatekeeper.Domain.Models.AdmissionTokenData.AdmissionId.init -> void
+Gatekeeper.Domain.Models.AdmissionTokenData.AdmissionTokenData(Gatekeeper.Domain.ValueObjects.AdmissionId AdmissionId, string! UserId, System.DateTime IssuedAtUtc, System.DateTime ExpiresAtUtc) -> void
+Gatekeeper.Domain.Models.AdmissionTokenData.Deconstruct(out Gatekeeper.Domain.ValueObjects.AdmissionId AdmissionId, out string! UserId, out System.DateTime IssuedAtUtc, out System.DateTime ExpiresAtUtc) -> void
+Gatekeeper.Domain.Models.AdmissionTokenData.Equals(Gatekeeper.Domain.Models.AdmissionTokenData? other) -> bool
+Gatekeeper.Domain.Models.AdmissionTokenData.ExpiresAtUtc.get -> System.DateTime
+Gatekeeper.Domain.Models.AdmissionTokenData.ExpiresAtUtc.init -> void
+Gatekeeper.Domain.Models.AdmissionTokenData.IssuedAtUtc.get -> System.DateTime
+Gatekeeper.Domain.Models.AdmissionTokenData.IssuedAtUtc.init -> void
+Gatekeeper.Domain.Models.AdmissionTokenData.UserId.get -> string!
+Gatekeeper.Domain.Models.AdmissionTokenData.UserId.init -> void
+Gatekeeper.Domain.Models.QueuePosition
+Gatekeeper.Domain.Models.QueuePosition.<Clone>$() -> Gatekeeper.Domain.Models.QueuePosition!
+Gatekeeper.Domain.Models.QueuePosition.Equals(Gatekeeper.Domain.Models.QueuePosition? other) -> bool
+Gatekeeper.Domain.Models.QueuePosition.EstimatedWaitTime.get -> System.TimeSpan
+Gatekeeper.Domain.Models.QueuePosition.Position.get -> long
+Gatekeeper.Domain.Models.QueuePosition.UserId.get -> string!
+Gatekeeper.Domain.ValueObjects.AdmissionId
+Gatekeeper.Domain.ValueObjects.AdmissionId.AdmissionId() -> void
+Gatekeeper.Domain.ValueObjects.AdmissionId.AdmissionId(System.Guid value) -> void
+Gatekeeper.Domain.ValueObjects.AdmissionId.Equals(Gatekeeper.Domain.ValueObjects.AdmissionId other) -> bool
+Gatekeeper.Domain.ValueObjects.AdmissionId.Value.get -> System.Guid
+override Gatekeeper.Domain.Models.AdmissionClaim.Equals(object? obj) -> bool
+override Gatekeeper.Domain.Models.AdmissionClaim.GetHashCode() -> int
+override Gatekeeper.Domain.Models.AdmissionClaim.ToString() -> string!
+override Gatekeeper.Domain.Models.AdmissionClaimResult.Equals(object? obj) -> bool
+override Gatekeeper.Domain.Models.AdmissionClaimResult.GetHashCode() -> int
+override Gatekeeper.Domain.Models.AdmissionClaimResult.ToString() -> string!
+override Gatekeeper.Domain.Models.AdmissionRecoveryResult.Equals(object? obj) -> bool
+override Gatekeeper.Domain.Models.AdmissionRecoveryResult.GetHashCode() -> int
+override Gatekeeper.Domain.Models.AdmissionRecoveryResult.ToString() -> string!
+override Gatekeeper.Domain.Models.AdmissionTokenData.Equals(object? obj) -> bool
+override Gatekeeper.Domain.Models.AdmissionTokenData.GetHashCode() -> int
+override Gatekeeper.Domain.Models.AdmissionTokenData.ToString() -> string!
+override Gatekeeper.Domain.Models.QueuePosition.Equals(object? obj) -> bool
+override Gatekeeper.Domain.Models.QueuePosition.GetHashCode() -> int
+override Gatekeeper.Domain.Models.QueuePosition.ToString() -> string!
+override Gatekeeper.Domain.ValueObjects.AdmissionId.GetHashCode() -> int
+override Gatekeeper.Domain.ValueObjects.AdmissionId.ToString() -> string!
+static Gatekeeper.Domain.Models.AdmissionClaim.operator !=(Gatekeeper.Domain.Models.AdmissionClaim? left, Gatekeeper.Domain.Models.AdmissionClaim? right) -> bool
+static Gatekeeper.Domain.Models.AdmissionClaim.operator ==(Gatekeeper.Domain.Models.AdmissionClaim? left, Gatekeeper.Domain.Models.AdmissionClaim? right) -> bool
+static Gatekeeper.Domain.Models.AdmissionClaimResult.operator !=(Gatekeeper.Domain.Models.AdmissionClaimResult? left, Gatekeeper.Domain.Models.AdmissionClaimResult? right) -> bool
+static Gatekeeper.Domain.Models.AdmissionClaimResult.operator ==(Gatekeeper.Domain.Models.AdmissionClaimResult? left, Gatekeeper.Domain.Models.AdmissionClaimResult? right) -> bool
+static Gatekeeper.Domain.Models.AdmissionRecoveryResult.operator !=(Gatekeeper.Domain.Models.AdmissionRecoveryResult? left, Gatekeeper.Domain.Models.AdmissionRecoveryResult? right) -> bool
+static Gatekeeper.Domain.Models.AdmissionRecoveryResult.operator ==(Gatekeeper.Domain.Models.AdmissionRecoveryResult? left, Gatekeeper.Domain.Models.AdmissionRecoveryResult? right) -> bool
+static Gatekeeper.Domain.Models.AdmissionTokenData.operator !=(Gatekeeper.Domain.Models.AdmissionTokenData? left, Gatekeeper.Domain.Models.AdmissionTokenData? right) -> bool
+static Gatekeeper.Domain.Models.AdmissionTokenData.operator ==(Gatekeeper.Domain.Models.AdmissionTokenData? left, Gatekeeper.Domain.Models.AdmissionTokenData? right) -> bool
+static Gatekeeper.Domain.Models.QueuePosition.Create(string! userId, long position, int batchSize, System.TimeSpan releaseInterval) -> Gatekeeper.Domain.Models.QueuePosition!
+static Gatekeeper.Domain.Models.QueuePosition.operator !=(Gatekeeper.Domain.Models.QueuePosition? left, Gatekeeper.Domain.Models.QueuePosition? right) -> bool
+static Gatekeeper.Domain.Models.QueuePosition.operator ==(Gatekeeper.Domain.Models.QueuePosition? left, Gatekeeper.Domain.Models.QueuePosition? right) -> bool
+static Gatekeeper.Domain.ValueObjects.AdmissionId.New() -> Gatekeeper.Domain.ValueObjects.AdmissionId
+static Gatekeeper.Domain.ValueObjects.AdmissionId.operator !=(Gatekeeper.Domain.ValueObjects.AdmissionId left, Gatekeeper.Domain.ValueObjects.AdmissionId right) -> bool
+static Gatekeeper.Domain.ValueObjects.AdmissionId.operator ==(Gatekeeper.Domain.ValueObjects.AdmissionId left, Gatekeeper.Domain.ValueObjects.AdmissionId right) -> bool
+~override Gatekeeper.Domain.ValueObjects.AdmissionId.Equals(object obj) -> bool

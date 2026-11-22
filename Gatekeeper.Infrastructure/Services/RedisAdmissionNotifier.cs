@@ -5,7 +5,7 @@ using StackExchange.Redis;
 
 namespace Gatekeeper.Infrastructure.Services;
 
-public sealed class RedisAdmissionNotifier : IAdmissionNotifier
+internal sealed class RedisAdmissionNotifier : IAdmissionNotifier
 {
     private readonly ISubscriber _subscriber;
     private readonly QueueOptions _options;

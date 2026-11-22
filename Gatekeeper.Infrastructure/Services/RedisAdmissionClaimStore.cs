@@ -13,7 +13,7 @@ using StackExchange.Redis;
 
 namespace Gatekeeper.Infrastructure.Services;
 
-public sealed class RedisAdmissionClaimStore : IAdmissionClaimStore
+internal sealed class RedisAdmissionClaimStore : IAdmissionClaimStore
 {
     private static readonly Lazy<string> RecoveryScript = RedisScriptSource.Load("RecoverAdmission.lua");
     private static readonly Lazy<string> AdmissionSnapshotScript = RedisScriptSource.Load("GetAdmissionSnapshot.lua");

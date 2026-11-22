@@ -1,0 +1,10 @@
+#nullable enable
+Gatekeeper.AspNetCore.GatekeeperAdmissionExtensions
+Gatekeeper.AspNetCore.GatekeeperAdmissionOptions
+Gatekeeper.AspNetCore.GatekeeperAdmissionOptions.GatekeeperAdmissionOptions() -> void
+Gatekeeper.AspNetCore.GatekeeperAdmissionOptions.HeaderName.get -> string!
+Gatekeeper.AspNetCore.GatekeeperAdmissionOptions.HeaderName.set -> void
+Gatekeeper.AspNetCore.GatekeeperAdmissionOptions.UserIdResolver.get -> System.Func<System.Security.Claims.ClaimsPrincipal!, string?>!
+Gatekeeper.AspNetCore.GatekeeperAdmissionOptions.UserIdResolver.set -> void
+static Gatekeeper.AspNetCore.GatekeeperAdmissionExtensions.AddGatekeeperAdmission(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Gatekeeper.AspNetCore.GatekeeperAdmissionOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Gatekeeper.AspNetCore.GatekeeperAdmissionExtensions.RequireGatekeeperAdmission<TBuilder>(this TBuilder builder) -> TBuilder

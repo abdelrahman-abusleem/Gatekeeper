@@ -13,7 +13,7 @@ using Gatekeeper.Domain.ValueObjects;
 
 namespace Gatekeeper.Infrastructure.Services;
 
-public sealed class JwtAdmissionTokenService : IAdmissionTokenService
+internal sealed class JwtAdmissionTokenService : IAdmissionTokenService
 {
     internal const int NotBeforeToleranceSeconds = 5;
     private const string TypeClaimName = "type";

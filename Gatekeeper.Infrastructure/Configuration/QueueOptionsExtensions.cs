@@ -1,12 +1,12 @@
 ﻿namespace Gatekeeper.Infrastructure.Configuration;
 
-public static class QueueOptionsExtensions
+internal static class QueueOptionsExtensions
 {
-    public static bool HasValidRetentionPolicy(this QueueOptions options) =>
+    internal static bool HasValidRetentionPolicy(this QueueOptions options) =>
         options.ClaimIdAcceptanceWindowSeconds is >= 1 and <= 3600
         && options.ClaimAttemptGraceSeconds is >= 1 and <= 300;
 
-    public static bool HasValidRedisKeys(this QueueOptions options)
+    internal static bool HasValidRedisKeys(this QueueOptions options)
     {
         string[] fixedKeys = [options.QueueKey, options.ProcessingQueueKey,
             options.AdmissionRecordsKey, options.ActivePassesKey, options.QueueSequenceKey, options.CapacityKey];
@@ -42,7 +42,7 @@ public static class QueueOptionsExtensions
                 ["Redis keys must be disjoint and contain the same explicit nonempty Cluster hash tag."]);
     }
 
-    public static string BuildPassKey(this QueueOptions options, string userId)
+    internal static string BuildPassKey(this QueueOptions options, string userId)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
@@ -50,7 +50,7 @@ public static class QueueOptionsExtensions
         return $"{options.PassKeyPrefix}{userId}";
     }
 
-    public static string BuildNotifyChannel(this QueueOptions options, string userId)
+    internal static string BuildNotifyChannel(this QueueOptions options, string userId)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
