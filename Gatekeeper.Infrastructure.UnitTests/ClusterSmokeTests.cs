@@ -85,7 +85,7 @@ public sealed class ClusterSmokeTests(ITestOutputHelper output)
             finally { connection.ConnectionFailed -= OnDisconnect; }
         }
         foreach (var port in ports)
-            Assert.NotEmpty(connection.GetServer("127.0.0.1", port).Keys(pattern: "phase03:*"));
+            Assert.NotEmpty(connection.GetServer("127.0.0.1", port).Keys(pattern: "admission-tests:*"));
     }
 
     private async Task StartReadyClusterAsync(IContainer cluster, IReadOnlyList<int> ports)

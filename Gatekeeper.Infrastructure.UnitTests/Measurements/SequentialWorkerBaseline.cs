@@ -11,25 +11,25 @@ using Microsoft.Extensions.Options;
 
 namespace Gatekeeper.Infrastructure.UnitTests.Measurements;
 
-public sealed class Phase04SequentialWorker : BackgroundService
+public sealed class SequentialWorkerBaseline : BackgroundService
 {
     private readonly IAdmissionClaimStore _store;
     private readonly IAdmissionTokenService _tokens;
     private readonly IAdmissionNotifier _notifier;
     private readonly QueueOptions _options;
-    private readonly ILogger<Phase04SequentialWorker> _logger;
+    private readonly ILogger<SequentialWorkerBaseline> _logger;
     private AdmissionId? _attemptId;
     private AdmissionClaim? _claim;
     private string? _token;
     private DateTime _expiresAtUtc;
     private bool _commitUncertain;
 
-    public Phase04SequentialWorker(
+    public SequentialWorkerBaseline(
         IAdmissionClaimStore store,
         IAdmissionTokenService tokens,
         IAdmissionNotifier notifier,
         IOptions<QueueOptions> options,
-        ILogger<Phase04SequentialWorker> logger)
+        ILogger<SequentialWorkerBaseline> logger)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(tokens);

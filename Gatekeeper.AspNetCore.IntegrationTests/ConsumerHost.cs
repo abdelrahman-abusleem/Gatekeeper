@@ -55,7 +55,7 @@ internal sealed class ConsumerHost : IAsyncDisposable
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0"); // Isolated loopback tests only; production guidance requires TLS.
         builder.Logging.ClearProviders();
-        var prefix = $"phase06:{{{Guid.NewGuid():N}}}";
+        var prefix = $"consumer-tests:{{{Guid.NewGuid():N}}}";
         var settings = new Dictionary<string, string?>
         {
             ["JwtSettings:SecretKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),

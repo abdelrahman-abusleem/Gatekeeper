@@ -14,10 +14,10 @@ using Xunit.Abstractions;
 
 namespace Gatekeeper.Infrastructure.UnitTests;
 
-[CollectionDefinition("Phase05 isolated measurements", DisableParallelization = true)]
+[CollectionDefinition("Isolated measurements", DisableParallelization = true)]
 public sealed class Phase05MeasurementCollection { }
 
-[Collection("Phase05 isolated measurements")]
+[Collection("Isolated measurements")]
 public sealed class OperationsTests(RedisClaimFixture fixture, ITestOutputHelper output) : IClassFixture<RedisClaimFixture>
 {
     [Fact]
@@ -57,8 +57,8 @@ public sealed class OperationsTests(RedisClaimFixture fixture, ITestOutputHelper
         var tokens = new JwtAdmissionTokenService(Options.Create(new JwtOptions
         {
             SecretKey = Convert.ToBase64String(Enumerable.Range(1, 32).Select(i => (byte)i).ToArray()),
-            Issuer = "phase03",
-            Audience = "phase03-clients"
+            Issuer = "admission-tests",
+            Audience = "admission-tests-clients"
         }), new QuietLogger<JwtAdmissionTokenService>(logs));
         var store = new RedisAdmissionClaimStore(fixture.Connection, Options.Create(c.Options), new QuietLogger<RedisAdmissionClaimStore>(logs), tokens);
         await queue.EnqueueAsync("private-user");
@@ -139,8 +139,8 @@ public sealed class OperationsTests(RedisClaimFixture fixture, ITestOutputHelper
         var timer = Stopwatch.StartNew();
         if (implementation.Contains("sequential", StringComparison.Ordinal))
         {
-            using var baseline = new Phase04SequentialWorker(observed, c.Tokens, notifier, Options.Create(c.Options),
-                NullLogger<Phase04SequentialWorker>.Instance);
+            using var baseline = new SequentialWorkerBaseline(observed, c.Tokens, notifier, Options.Create(c.Options),
+                NullLogger<SequentialWorkerBaseline>.Instance);
             await baseline.ProcessBatchAsync();
         }
         else

@@ -28,8 +28,8 @@ public sealed class LoggingTests(RedisClaimFixture fixture) : IClassFixture<Redi
         var tokens = new JwtAdmissionTokenService(Options.Create(new JwtOptions
         {
             SecretKey = secret,
-            Issuer = "phase03",
-            Audience = "phase03-clients"
+            Issuer = "admission-tests",
+            Audience = "admission-tests-clients"
         }), new Capture<JwtAdmissionTokenService>(logs));
         var store = new RedisAdmissionClaimStore(fixture.Connection, Options.Create(c.Options),
             new Capture<RedisAdmissionClaimStore>(logs), tokens);

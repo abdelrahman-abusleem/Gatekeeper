@@ -34,7 +34,7 @@ public sealed class JwtTests(RedisClaimFixture fixture) : IClassFixture<RedisCla
         var c = new AdmissionTestContext(fixture);
         var (_, token, _) = await StatusPollingTests.ActivateAsync(c);
         var options = Settings();
-        options.Issuer = "phase03"; options.Audience = "phase03-clients";
+        options.Issuer = "admission-tests"; options.Audience = "admission-tests-clients";
         var validator = new JwtAdmissionTokenService(Options.Create(options),
             NullLogger<JwtAdmissionTokenService>.Instance, new FixedClock(DateTimeOffset.UtcNow.AddSeconds(offset)));
         var store = new RedisAdmissionClaimStore(fixture.Connection, Options.Create(c.Options),
@@ -79,8 +79,8 @@ public sealed class JwtTests(RedisClaimFixture fixture) : IClassFixture<RedisCla
     internal static Gatekeeper.Infrastructure.Configuration.JwtOptions Settings() => new()
     {
         SecretKey = Convert.ToBase64String(Enumerable.Range(1, 32).Select(x => (byte)x).ToArray()),
-        Issuer = "refactor-jwt",
-        Audience = "refactor-clients"
+        Issuer = "token-tests",
+        Audience = "token-test-clients"
     };
 
     private sealed class NonUtcTokens(IAdmissionTokenService inner, DateTimeKind kind) : IAdmissionTokenService

@@ -242,8 +242,8 @@ public sealed class AdmissionSecurityTests(RedisClaimFixture fixture) : IClassFi
             IssuedAt = issued,
             NotBefore = issued,
             Expires = expiry,
-            Issuer = fault == "issuer" ? "other" : "phase03",
-            Audience = fault == "audience" ? "other" : "phase03-clients",
+            Issuer = fault == "issuer" ? "other" : "admission-tests",
+            Audience = fault == "audience" ? "other" : "admission-tests-clients",
             SigningCredentials = fault == "unsigned" ? null : new SigningCredentials(new SymmetricSecurityKey(key),
                 fault == "algorithm" ? SecurityAlgorithms.HmacSha512 : SecurityAlgorithms.HmacSha256)
         });

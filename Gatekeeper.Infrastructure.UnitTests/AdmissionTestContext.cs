@@ -29,7 +29,7 @@ internal sealed class AdmissionTestContext
     public AdmissionTestContext(IConnectionMultiplexer connection, int capacity = 10, int batchSize = 4,
         Action<QueueOptions>? configure = null)
     {
-        var prefix = $"phase03:{{{Guid.NewGuid():N}}}";
+        var prefix = $"admission-tests:{{{Guid.NewGuid():N}}}";
         Options = new QueueOptions
         {
             CapacityKey = prefix + ":capacity",
@@ -53,8 +53,8 @@ internal sealed class AdmissionTestContext
         Tokens = new JwtAdmissionTokenService(Microsoft.Extensions.Options.Options.Create(new JwtOptions
         {
             SecretKey = Convert.ToBase64String(Enumerable.Range(1, 32).Select(x => (byte)x).ToArray()),
-            Issuer = "phase03",
-            Audience = "phase03-clients"
+            Issuer = "admission-tests",
+            Audience = "admission-tests-clients"
         }), NullLogger<JwtAdmissionTokenService>.Instance);
         Store = new RedisAdmissionClaimStore(connection,
             Microsoft.Extensions.Options.Options.Create(Options), NullLogger<RedisAdmissionClaimStore>.Instance, Tokens);

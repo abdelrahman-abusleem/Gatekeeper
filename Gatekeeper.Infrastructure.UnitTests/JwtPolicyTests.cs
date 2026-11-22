@@ -8,7 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Gatekeeper.Infrastructure.UnitTests;
 
-[Collection("Phase05 isolated measurements")]
+[Collection("Isolated measurements")]
 public sealed class JwtPolicyTests
 {
     private static readonly DateTime Issue = new(2026, 10, 19, 12, 0, 0, DateTimeKind.Utc);
