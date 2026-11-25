@@ -109,6 +109,8 @@ For signing-key rotation: first add the NEW key to `AdditionalSecretKeys` on ALL
 
 ## Links and license
 
+Author: Abdelrahman Abusleem.
+
 - [Repository](https://github.com/abdelrahman-abusleem/Gatekeeper)
 - [Full README and operating guidance](https://github.com/abdelrahman-abusleem/Gatekeeper/blob/master/README.md)
 - [MIT License](https://github.com/abdelrahman-abusleem/Gatekeeper/blob/master/LICENSE)

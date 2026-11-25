@@ -395,4 +395,6 @@ Adjust the relative paths to match the location of your application and the clon
 
 ## License
 
+Author: Abdelrahman Abusleem.
+
 Gatekeeper is licensed under the [MIT License](LICENSE).
