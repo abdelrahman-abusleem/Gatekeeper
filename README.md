@@ -3,9 +3,9 @@
 Gatekeeper provides Redis-backed virtual waiting rooms and controlled admission for distributed .NET 10 applications. Hosts enqueue trusted identities; Workers reserve capacity, sign JWT admission passes and commit exact admission state in Redis. Optional ASP.NET Core authorization guards protected endpoints alongside the host's authentication.
 
 [![CI](https://github.com/abdelrahman-abusleem/Gatekeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/abdelrahman-abusleem/Gatekeeper/actions/workflows/ci.yml)
-[![NuGet Gatekeeper.Domain](https://img.shields.io/nuget/vpre/Gatekeeper.Domain)](https://www.nuget.org/packages/Gatekeeper.Domain)
-[![NuGet Gatekeeper.Infrastructure](https://img.shields.io/nuget/vpre/Gatekeeper.Infrastructure)](https://www.nuget.org/packages/Gatekeeper.Infrastructure)
-[![NuGet Gatekeeper.AspNetCore](https://img.shields.io/nuget/vpre/Gatekeeper.AspNetCore)](https://www.nuget.org/packages/Gatekeeper.AspNetCore)
+[![NuGet Gatekeeper.Domain](https://img.shields.io/nuget/vpre/Gatekeeper.Domain.svg)](https://www.nuget.org/packages/Gatekeeper.Domain)
+[![NuGet Gatekeeper.Infrastructure](https://img.shields.io/nuget/vpre/Gatekeeper.Infrastructure.svg)](https://www.nuget.org/packages/Gatekeeper.Infrastructure)
+[![NuGet Gatekeeper.AspNetCore](https://img.shields.io/nuget/vpre/Gatekeeper.AspNetCore.svg)](https://www.nuget.org/packages/Gatekeeper.AspNetCore)
 
 ## Quick start
 
